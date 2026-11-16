@@ -361,8 +361,15 @@
         // Lọc theo nút đang chọn, rồi bỏ cột status (cuối) để bảng không bị lệch cột
         function getCameraRows(rows) {
             let result = rows || [];
+            // Backend cũ: SQL detail chưa có cột status (chỉ 9 cột) và chỉ trả camera offline (status='0')
+            const hasStatus = result.some(r => r.length > CAMERA_STATUS_IDX);
             if (CAMERA_FILTER) {
-                result = result.filter(r => String(r[CAMERA_STATUS_IDX] || '').toLowerCase() === CAMERA_FILTER);
+                if (hasStatus) {
+                    result = result.filter(r => String(r[CAMERA_STATUS_IDX] || '').toLowerCase() === CAMERA_FILTER);
+                } else {
+                    console.warn('[WVN] detail.camera chưa có cột status -> cần cập nhật config.json/server trên máy chủ');
+                    if (CAMERA_FILTER === 'covered') result = [];   // dữ liệu cũ không có camera bị che
+                }
             }
             return result.map(r => r.slice(0, CAMERA_STATUS_IDX));
         }
