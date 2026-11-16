@@ -1,0 +1,819 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #0a0a0a;
+  font-family: 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  color: #fff;
+  min-height: 100vh;
+}
+
+.dashboard {
+  padding: 10px;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  /* Đóng vai trò trục dọc */
+  overflow: hidden;
+}
+
+/* Container tiêu đề chính */
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 10px;
+  height: 60px;
+  flex-shrink: 0;
+}
+
+/* Khối bọc ngoài để xếp dọc thời gian và ngôn ngữ */
+.header-right-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  /* SỬA THÀNH flex-start để hai dòng thẳng hàng bằng nhau ở ĐẦU DÒNG */
+  gap: 4px;
+  /* Khoảng cách giữa thời gian và thanh ngôn ngữ */
+  font-family: sans-serif;
+}
+
+/* Định dạng cho phần hiển thị thời gian */
+.time-display {
+  color: #fffdfd;
+  /* Màu xám nhẹ hợp với nền tối */
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+.lang-switch {
+  display: flex;
+  align-items: center;
+  /* margin-left: auto; */
+  /* XÓA/COMMENT DÒNG NÀY để không bị đẩy lệch sang phải */
+  font-size: 14px;
+  color: #888;
+}
+
+.lang-switch span {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.lang-switch span:hover {
+  color: #fff;
+}
+
+.lang-switch span.active {
+  color: #A1CC56;
+  /* Màu xanh Wistron */
+  font-weight: bold;
+}
+
+.lang-switch .divider {
+  /* Bạn có thể giảm margin bên trái của chữ CN đầu tiên nếu muốn nó sát mép hẳn */
+  margin: 0 10px;
+  cursor: default;
+  color: #333;
+}
+
+.dashboard-logo {
+  flex: 0 0 150px;
+  /* Cố định độ rộng vùng Logo, không cho co giãn */
+}
+
+.dashboard-logo svg {
+  height: 100%;
+  width: auto;
+}
+
+/* Định dạng chữ tiêu đề */
+.dashboard-title {
+  flex: 1;
+  /* Chiếm toàn bộ không gian còn trống ở giữa */
+  text-align: center;
+  font-size: 25px;
+  font-weight: bold;
+  color: #fff;
+  white-space: nowrap;
+  /* Ưu tiên trên 1 hàng */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Nếu quá dài sẽ hiện dấu ... thay vì xuống hàng làm nát layout */
+  margin: 0 15px;
+}
+
+/* ── Main 3-column grid ── */
+.grid-top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  /* 3 cột bằng nhau */
+  grid-template-rows: repeat(3, 1fr);
+  /* Cấu trúc 3 hàng tự động giãn bằng nhau */
+  gap: 10px;
+  /* Tăng nhẹ gap từ 4px lên 10px giúp layout thoáng và đẹp hơn */
+  flex-grow: 1;
+  /* Ép lưới chiếm trọn phần không gian trống còn lại của màn hình */
+  margin-bottom: 0;
+}
+
+/* ── Bottom row: 1 card + 1 empty + 1 contact ── */
+.grid-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+
+/* ── Card ── */
+.card {
+  position: relative;
+  background: #111;
+  border: 1px solid #2e2e2e;
+  padding: 15px 10px 20px;
+  /* Giảm bớt padding top thừa */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* Căn giữa toàn bộ nội dung trong card theo chiều dọc */
+  align-items: center;
+}
+
+.card-time-footer {
+  position: absolute;
+  bottom: 2px;
+  /* Đẩy sát xuống cạnh dưới một chút */
+  right: 10px;
+  /* Dịch vào trong một tí để thẳng hàng dọc với chữ "正常数(台)" phía trên */
+  font-size: calc(8px + 0.1vw);
+  /* Hạ font chữ xuống 12px nhìn sẽ tinh tế và phụ trợ hơn cho các con số lớn */
+  color: #aaa;
+  white-space: nowrap;
+  /* Hạ tông màu tối hơn một chút để làm nổi bật dữ liệu chính */
+  margin: 0;
+  padding: 0;
+  /* Reset padding về 0 để không lỗi định vị */
+  font-family: 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  /* Font thanh thoát */
+  letter-spacing: 0.5px;
+  /* Giãn cách nhẹ giữa các chữ và số nhìn sẽ rất sang */
+}
+
+.card-title {
+  font-size: 14px;
+  color: #f0f0f0;
+  font-weight: bold;
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
+
+.circles-row {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 6px;
+}
+
+.circle-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.circle {
+  /* SỬA LẠI: Ô tròn sẽ bằng khoảng 5% chiều rộng màn hình */
+  width: 8vw;
+  height: 8vw;
+
+  /* Giới hạn kích thước tối thiểu và tối đa để không bị quá bé hoặc quá to */
+  min-width: 60px;
+  min-height: 60px;
+  max-width: 90px;
+  max-height: 90px;
+
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* SỬA LẠI: Kích thước chữ bên trong cũng co giãn theo ô tròn */
+  font-size: calc(12px + 0.6vw);
+
+  font-weight: bold;
+  color: #fff;
+  transition: transform 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+
+.circle.abnormal {
+  background: radial-gradient(circle at 35% 35%, #e83333, #991111);
+}
+
+.circle.normal {
+  background: radial-gradient(circle at 35% 35%, #33aa33, #116611);
+}
+
+
+.circle.clickable {
+  cursor: pointer;
+}
+
+.circle.clickable:hover {
+  transform: scale(1.07);
+  box-shadow: 0 0 14px rgba(220, 50, 50, 0.6);
+}
+
+.circle.clickable:active {
+  transform: scale(0.97);
+}
+
+/* pulse ring on abnormal clickable */
+.circle.clickable.abnormal::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid rgba(220, 50, 50, 0.5);
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  70% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+.circle-label {
+  font-size: calc(10px + 0.1vw);
+  /* Tự động giãn từ 10px trở lên tùy màn hình */
+  color: #aaa;
+  white-space: nowrap;
+  /* Giữ chữ trên một hàng không bị xuống dòng lỗi */
+}
+
+/* --- Khối bọc ngoài cùng của phần liên hệ IT --- */
+.contact-card {
+  width: 100%;
+  margin-top: 5px;
+  /* Tạo khoảng cách vừa phải với hàng card phía trên */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tiêu đề bảng "IT人员联系方式" */
+.contact-title {
+  color: #dcdcdc;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: left;
+  text-decoration: none !important;
+
+  /* Phần khung hiện tại của bạn */
+  border: 1px solid #e5c133;
+  border-radius: 6px;
+  padding: 6px 12px;
+  display: inline-block;
+
+  /* --- THÊM DÒNG NÀY ĐỂ ĐẨY THỜI GIAN RA --- */
+  margin-right: 15px;
+  /* Tăng/giảm số px nếu muốn cách rộng hơn */
+  vertical-align: middle;
+  /* Giúp khung và chữ thời gian thẳng hàng dòng với nhau */
+}
+
+/* Container bọc ngang cả 3 bảng */
+.contact-tables-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  /* Khớp với khoảng cách gap: 10px của .grid-top phía trên */
+  width: 100%;
+}
+
+/* Định dạng cho từng phần bao bọc bảng chiếm diện tích bằng nhau */
+.contact-table-wrapper {
+  flex: 1;
+  min-width: 0;
+  /* Tránh tràn layout */
+}
+
+/* Định dạng cấu trúc bảng */
+.contact-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #fff;
+  font-size: 13px;
+}
+
+/* Định dạng header và ô dữ liệu khớp với viền trắng mảnh trong ảnh mẫu */
+.contact-table th,
+.contact-table td {
+  border: 1px solid #aaa;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+/* Định dạng riêng cho hàng tiêu đề của bảng liên hệ giống như ảnh */
+.contact-table th {
+  background-color: transparent;
+  /* Hoặc giữ đen nền tùy ý */
+  font-weight: bold;
+}
+
+.empty-card {
+  background: transparent;
+  border: none;
+}
+
+/* ══════════════════════════════
+     MODAL OVERLAY
+  ══════════════════════════════ */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+}
+
+.overlay.active {
+  display: flex;
+}
+
+.modal {
+  background: #0f0f0f;
+  border: 1px solid #333;
+  width: 98%;
+  max-width: 1600px;
+  max-height: 92vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  background: #1a1a1a;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #333;
+}
+
+.modal-header-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.modal-close-btn {
+  background: #cc2222;
+  border: none;
+  color: #fff;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.modal-close-btn:hover {
+  background: #aa1111;
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Section header: Tên mục + Số lượng đỏ */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.section-name {
+  font-size: 14px;
+  color: #ddd;
+}
+
+.section-count {
+  color: #ff4444;
+  background: #2a0a0a;
+  padding: 4px 12px;
+  font-weight: bold;
+  font-size: 16px;
+  border-radius: 2px;
+}
+
+/* Bảng chi tiết giống ảnh */
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  border: 1px solid #333;
+  table-layout: fixed;
+}
+
+.detail-table th {
+  background: #1e1e1e;
+  color: #888;
+  font-weight: normal;
+  border: 1px solid #333;
+  padding: 8px 6px;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: middle;
+}
+
+.detail-table td {
+  color: #eee;
+  border: 1px solid #2a2a2a;
+  padding: 8px 6px;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: middle;
+}
+
+.detail-table tr:nth-child(even) td {
+  background: #141414;
+}
+
+.detail-table tr:hover td {
+  background: #1d1d1d;
+}
+
+/* Trạng thái khi bất thường bằng 0: Màu xanh, không nháy, không click */
+.circle.abnormal.is-zero {
+  background: radial-gradient(circle at 35% 35%, #33aa33, #116611) !important;
+  border: None;
+  animation: none !important;
+  pointer-events: none;
+  /* Ngăn không cho click */
+  cursor: default;
+  /* Đổi con trỏ chuột về mặc định */
+}
+
+/* Ẩn hiệu ứng nháy lan tỏa khi bằng 0 */
+.circle.abnormal.is-zero::after {
+  display: none !important;
+}
+
+/* Trạng thái mặc định của vòng tròn ngoại lệ khi > 0 (Màu cam, chữ gạch chân) */
+.circle.exception {
+  background: radial-gradient(circle at 35% 35%, #ff9f1a, #cd7f00);
+}
+
+.circle.covered {
+  background: radial-gradient(circle at 35% 35%, #a578E1, #623ca0);
+}
+
+.circle.covered.clickable {
+  cursor: pointer;
+}
+
+.circle.covered.clickable:hover {
+  transform: scale(1.07);
+  box-shadow: 0 0 14px #a578E1;
+}
+
+.circle.clickable.covered::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid rgba(139, 95, 208, 0.532);
+  animation: pulse-ring 2s infinite;
+}
+
+.circle.exception.clickable {
+  cursor: pointer;
+}
+
+.circle.exception.clickable:hover {
+  transform: scale(1.07);
+  box-shadow: 0 0 14px #ff9f1a;
+}
+
+.circle.clickable.exception::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid rgba(251, 176, 47, 0.532);
+  animation: pulse-ring 2s infinite;
+}
+
+/* Trạng thái khi Ngoại lệ bằng 0: Đổi sang màu xanh lá, bỏ gạch chân, khóa click */
+.circle.exception.is-zero {
+  background: radial-gradient(circle at 35% 35%, #33aa33, #116611) !important;
+  text-decoration: none !important;
+  pointer-events: none;
+  cursor: default;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Thêm vào cuối file index.css */
+.btn-download {
+  background: #1d6f42;
+  /* Màu xanh lá đặc trưng của Excel */
+  color: white;
+  border: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+
+.btn-download:hover {
+  background: #155231;
+}
+
+.btn-download svg {
+  margin-bottom: -2px;
+}
+
+.btn-back {
+  background: #444;
+  color: white;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 10px;
+  font-size: 14px;
+  transition: background 0.3s;
+}
+
+.btn-back:hover {
+  background: #666;
+}
+
+.clickable-row:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ========== EDIT EXCEPTION MODAL ========== */
+#edit-overlay {
+  z-index: 9999;
+}
+
+.edit-modal {
+  max-width: 520px;
+  width: 90%;
+}
+
+.edit-modal-body {
+  padding: 20px;
+}
+
+.edit-camera-info-box {
+  margin-bottom: 14px;
+  padding: 10px;
+  background: #1a1a2e;
+  border-radius: 6px;
+}
+
+.edit-camera-info-text {
+  color: #aaa;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.edit-field-group {
+  margin-bottom: 16px;
+}
+
+.edit-field-label {
+  display: block;
+  color: #ccc;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.edit-exclude-hint {
+  color: #888;
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+.edit-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: #1e1e2e;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+}
+
+.edit-textarea:focus {
+  border-color: #1e88e5;
+}
+
+.edit-btn-row {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.edit-btn {
+  padding: 8px 20px;
+  color: #008d00;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.edit-btn-cancel {
+  background: #444;
+}
+
+.edit-btn-delete {
+  background: #e53935;
+}
+
+.edit-btn-save {
+  background: #4caf50;
+  font-weight: bold;
+}
+
+.edit-status-msg {
+  margin-top: 10px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.login-modal {
+  max-width: 340px;
+  width: 90%;
+}
+
+.login-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.login-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.login-field-label {
+  color: #ccc;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.login-input {
+  background: #1a2535;
+  border: 1px solid #2e4a6e;
+  border-radius: 6px;
+  color: #e0eaf8;
+  font-size: 14px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.login-input:focus {
+  border-color: #4a9eff;
+}
+
+.login-error-msg {
+  color: #ff4d4f;
+  font-size: 13px;
+  min-height: 18px;
+  text-align: center;
+}
+
+.login-btn-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.login-password-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.login-password-wrap .login-input {
+    width: 100%;
+    padding-right: 40px;
+    box-sizing: border-box;
+}
+
+.login-toggle-eye {
+    position: absolute;
+    right: 10px;
+    cursor: pointer;
+    color: #8a9bb0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+    line-height: 0;
+}
+
+.login-toggle-eye:hover {
+    color: #4a9eff;
+}
+
+.login-toggle-eye svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+}
+
+.login-toggle-eye .icon-eye-off {
+    display: none;
+}
+
+.login-toggle-eye.showing .icon-eye {
+    display: none;
+}
+
+.login-toggle-eye.showing .icon-eye-off {
+    display: block;
+}
+
+.map-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+                align-items: center; justify-content: center; z-index: 100000; }
+.map-overlay.active { display: flex; }
+.map-box { width: 92vw; height: 88vh; background: #1e1e1e; border-radius: 8px;
+            display: flex; flex-direction: column; overflow: hidden; }
+.map-header { display: flex; justify-content: space-between; align-items: center;
+              padding: 10px 16px; color: #fff; border-bottom: 1px solid #444; }
+.map-header a { color: #4da3ff; margin-right: 16px; font-size: 14px; }
+.map-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+
+.camera-filter-bar { display: flex; gap: 10px; margin: 10px 0; }
+.btn-filter {
+    padding: 6px 18px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #555; background: transparent; color: #ccc;
+}
+.btn-filter:hover { border-color: #ff4d4f; color: #fff; }
+.btn-filter.active { background: #ff4d4f; border-color: #ff4d4f; color: #fff; }
+
+.btn-filter .filter-count {
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 4px;
+    background: rgba(255, 77, 79, 0.2);
+    color: #ff4d4f;
+    font-weight: bold;
+}
+.btn-filter.active .filter-count {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
