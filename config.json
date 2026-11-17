@@ -26,8 +26,8 @@
         "normal": "select count(distinct ter_no) as count from itsec_face_facedbtoterminalstatus where status='1'"
       },
       "camera": {
-        "abnormal": "select count(distinct ipaddress) as count from itsec_camera_offline_test where status<>'1'",
-        "normal": "select count(distinct ipaddress) as count from itsec_camera_offline where status='1'",
+        "abnormal": "select count(distinct ipaddress) as count from itsec_camera_offline_test where status='0'",
+        "normal": "select count(distinct ipaddress) as count from itsec_camera_offline_test where status='1'",
         "covered": "select count(distinct ipaddress) as count from itsec_camera_offline_test where status='2'"
       },
       "nvr": {
@@ -44,24 +44,25 @@
       "hr_face": "select name,qty,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_face_dartofacedbstatus where status<>'1' order by updatedate",
       "hr_door": "select name,qty,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_door_dartodoordbstatus where status<>'1' order by updatedate",
       "perm": "select name,ter_no,ipaddress,sum(qty),TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_face_facedbtoterminalstatus where status='0' group by name,ter_no,ipaddress,updatedate order by ter_no",
-      "camera": "select b.name as nvr_name,a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.remark from itsec_camera_offline_test a inner join itsec_nvr_offline b on a.nvr_ip =b.ipaddress where a.status='0' order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
+      "camera": "select a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.remark,case when a.status='2' then 'covered' else 'offline' end as status from itsec_camera_offline_test a where a.status in ('0','2') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
+      "camera_offline": "select a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.remark,case when a.status='2' then 'covered' else 'offline' end as status from itsec_camera_offline_test a where a.status in ('0') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
+      "camera_covered": "select a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.remark,case when a.status='2' then 'covered' else 'offline' end as status from itsec_camera_offline_test a where a.status in ('2') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
       "nvr": "select name,ipaddress,round(offlineminute::numeric/60,1) hours,TO_CHAR(offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_nvr_offline where status='0' order by updatedate",
-      "accesscontrol":"select name,ipaddress,round(offlineminute::numeric/60,1) hours,TO_CHAR(offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_door_offline where status='0' order by updatedate "
+      "accesscontrol": "select name,ipaddress,round(offlineminute::numeric/60,1) hours,TO_CHAR(offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_door_offline where status='0' order by updatedate "
     },
     "sub_detail": {
       "sub_perm": "select name ,ter_no ,ipaddress ,deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark from itsec_face_facedbtoterminalstatusdetail where (ter_no = $1) and status='0' order by updatedate",
       "sub_hrface": "select deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark  from itsec_face_dartofacedbstatusdetail where SUBSTRING(deptcode,1,4) = SUBSTRING($1, 1, 4) and status<>'1' order by updatedate",
       "sub_hrdoor": "select deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark  from itsec_door_dartodoordbstatusdetail where (deptcode = $1) and status<>'1' order by updatedate"
     },
-    "allQueries":{
-            "all_hrface": "select deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark from itsec_face_dartofacedbstatusdetail where status<>'1' order by updatedate",
-            "all_hrdoor": "select deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark from itsec_door_dartodoordbstatusdetail where status<>'1' order by updatedate",
-            "all_perm": "select name ,ter_no ,ipaddress ,deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark from itsec_face_facedbtoterminalstatusdetail where status<>'1' order by updatedate"
-        },
-    "getTimes":{
-      "camera":"select TO_CHAR(max(updatedate), 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_camera_offline"
+    "allQueries": {
+      "all_hrface": "select deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark from itsec_face_dartofacedbstatusdetail where status<>'1' order by updatedate",
+      "all_hrdoor": "select deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark from itsec_door_dartodoordbstatusdetail where status<>'1' order by updatedate",
+      "all_perm": "select name ,ter_no ,ipaddress ,deptcode ,userid ,username ,TO_CHAR(trantime, 'YYYY-MM-DD HH24:MI:SS') as trantime ,status ,TO_CHAR(synctime, 'YYYY-MM-DD HH24:MI:SS') as synctime ,remark from itsec_face_facedbtoterminalstatusdetail where status<>'1' order by updatedate"
+    },
+    "getTimes": {
+      "camera": "select TO_CHAR(max(updatedate), 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_camera_offline"
     },
     "it_contact": "select * from itsec_itcontactlist where status='1' order by function "
-    }
-    
+  }
 }
