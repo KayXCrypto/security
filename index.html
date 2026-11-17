@@ -1,4 +1,4 @@
-l<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -524,9 +524,9 @@ l<!DOCTYPE html>
                 if (key === 'camera') {
                     const exceptionEl = document.getElementById('camera-exception');
 
-                    // config: abnormal = status='0' (chỉ ngoại tuyến), covered = status='2' (bị che) -> hai số độc lập
-                    CAMERA_COUNTS.offline = data.camera.abnormal ?? 0;
+                    // Số "Ngoại tuyến" trong popup = abnormal - covered (vòng tròn ngoài dashboard vẫn hiện abnormal)
                     CAMERA_COUNTS.covered = data.camera.covered ?? 0;
+                    CAMERA_COUNTS.offline = Math.max((data.camera.abnormal ?? 0) - CAMERA_COUNTS.covered, 0);
                     CAMERA_COUNTS.exception = data.camera.exception ?? 0;
 
                     if (CURRENT_TYPE === 'camera') {
