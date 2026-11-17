@@ -364,6 +364,37 @@
             return 'camera';
         }
 
+        // Lấy bảng chi tiết camera theo nút đang chọn.
+        // - Backend mới: mỗi nút có SQL riêng (camera / camera_offline / camera_covered).
+        // - Backend cũ (chưa có SQL riêng -> trả 0 dòng dù dashboard báo có): lấy 'camera' rồi tự lọc.
+        // Cột cuối 'status' (nếu SQL có trả) chỉ dùng để lọc, không hiển thị.
+        const CAMERA_STATUS_VALUES = ['offline', 'covered'];
+        const hasStatusCell = r => r.length > 0 && CAMERA_STATUS_VALUES.includes(String(r[r.length - 1]).toLowerCase());
+        function stripStatus(rows) {
+            return (rows || []).map(r => hasStatusCell(r) ? r.slice(0, -1) : r);
+        }
+        async function fetchCameraDetail() {
+            const url = 'wvn/security_qas/request/detail';
+            let data = await getMqttData(url, { type: cameraDetailType() });
+            if (data.success === false) return data;
+
+            const expected = CAMERA_FILTER ? (CAMERA_COUNTS[CAMERA_FILTER] || 0) : 0;
+            if (CAMERA_FILTER && expected > 0 && (!data.rows || data.rows.length === 0)) {
+                console.warn(`[WVN] backend chưa có detail.camera_${CAMERA_FILTER} -> dùng 'camera' và lọc ở giao diện`);
+                const all = await getMqttData(url, { type: 'camera' });
+                if (all.success === false) return all;
+                let rows = all.rows || [];
+                if (rows.some(hasStatusCell)) {
+                    rows = rows.filter(r => hasStatusCell(r) && String(r[r.length - 1]).toLowerCase() === CAMERA_FILTER);
+                } else if (CAMERA_FILTER === 'covered') {
+                    rows = [];                       // SQL 'camera' cũ chỉ gồm camera offline
+                }
+                data = { ...all, rows };
+            }
+            data.rows = stripStatus(data.rows);
+            return data;
+        }
+
         function applyCameraFilterLabels() {
             const t = {
                 zh: { offline: '离线', covered: '遮挡' },
@@ -393,7 +424,7 @@
 
             const seq = ++CAMERA_REQ_SEQ;
             try {
-                const data = await getMqttData('wvn/security_qas/request/detail', { type: cameraDetailType() });
+                const data = await fetchCameraDetail();
                 if (seq !== CAMERA_REQ_SEQ || CURRENT_TYPE !== 'camera') return;   // bỏ kết quả cũ nếu đã bấm nút khác
                 CURRENT_DETAIL_DATA = data;
                 renderTable(data.rows, 'camera');
@@ -687,7 +718,9 @@ const mqttClient = mqtt.connect(MQTT_WS_URL, {
             CURRENT_DETAIL_DATA = null;
 
             try {
-                const data = await getMqttData('wvn/security_qas/request/detail', { type: requestType });
+                const data = (type === 'camera')
+                    ? await fetchCameraDetail()
+                    : await getMqttData('wvn/security_qas/request/detail', { type: requestType });
                 console.log('DETAIL RESPONSE', data);
                 if (data.success === false) { alert(data.error); return; }
                 CURRENT_DETAIL_DATA = data;
@@ -1069,7 +1102,9 @@ const mqttClient = mqtt.connect(MQTT_WS_URL, {
 
                     // --- RELOAD lại toàn bộ bảng từ server (thay vì chỉ patch local) ---
                     const requestType = isCameraException ? 'cameraexception' : (CURRENT_TYPE === 'camera' ? cameraDetailType() : CURRENT_TYPE);
-                    const freshData = await getMqttData('wvn/security_qas/request/detail', { type: requestType });
+                    const freshData = (!isCameraException && CURRENT_TYPE === 'camera')
+                        ? await fetchCameraDetail()
+                        : await getMqttData('wvn/security_qas/request/detail', { type: requestType });
                     CURRENT_DETAIL_DATA = freshData;
                     renderTable(freshData.rows, CURRENT_TYPE);
                     // ------------------------------------------------------------------
