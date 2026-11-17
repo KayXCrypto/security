@@ -24,9 +24,12 @@ const i18n = {
         abnormal_detail: "异常详情",
         section_label: "异常项目:",
         update_time: "资料更新时间",
+        camera_filter_offline: "离线",
+        camera_filter_covered: "遮挡",
+        camera_layout: "查看布局图",
         cols_map: {
-            camera: ['编号', 'NVR主机', 'NVR IP', '通道名', '摄像头名称', 'IP地址', '离线小时', '离线时间', '资料更新时间', '例外原因','备注'],
-            camera_exception: ['编号', 'NVR主机', 'NVR IP', '通道名', '摄像头名称', 'IP地址', '离线小时', '离线时间', '资料更新时间', '例外原因', '创建原因日期','更新原因的日期','备注'],
+            camera: ['编号', 'NVR IP', '通道名', '摄像头名称', 'IP地址', '离线小时', '离线时间', '资料更新时间', '备注'],
+            camera_exception: ['编号', 'NVR IP', '通道名', '摄像头名称', 'IP地址', '离线小时', '离线时间', '资料更新时间', '例外原因', '创建原因日期', '更新原因的日期'],
             face: ['编号', '名称', '终端号', 'IP地址', '离线小时', '离线时间', '资料更新时间'],
             nvr: ['编号', '名称', 'IP地址', '离线小时', '离线时间', '资料更新时间'],
             hr_face: ['编号', '部门/名称', '未同步数', '资料更新时间'],
@@ -34,7 +37,7 @@ const i18n = {
             perm: ['编号', '名称', '终端号', 'IP地址', '未同步数', '资料更新时间'],
             accesscontrol: ['编号', '名称', 'IP地址', '离线小时', '离线时间', '资料更新时间'],
             magnetdoor: ['编号', '名称', 'IP地址', '离线小时', '离线时间', '资料更新时间'],
-            visitor: ['编号','单号','受访人','受访部','访客姓名','登记进入时间','登记出去时间','大门访客证编号','大门访客卡号','资料更新时间']
+            visitor: ['编号', '单号', '受访人', '受访部', '访客姓名', '登记进入时间', '登记出去时间', '大门访客证编号', '大门访客卡号', '资料更新时间']
         },
         cols_map_sub: {
             hr_face: ["编号", "部门名称", "工号", "姓名", "下发时间", "权限状态", "同步时间", "备注"],
@@ -58,10 +61,9 @@ const i18n = {
         login_title: "登录",
         login_username: "帐户",
         login_password: "密码",
-        login_submit : "登录",
+        login_submit: "登录",
         modifyKey: "修改的key是",
         cameraName: "摄像头名称"
-
     },
     vi: {
         title: "Bảng Giám Sát Trạng Thái Thiết Bị An Ninh WVN",
@@ -87,9 +89,12 @@ const i18n = {
         abnormal_detail: "Chi tiết Bất thường",
         section_label: "Hạng mục lỗi:",
         update_time: "Thời gian cập nhật dữ liệu",
+        camera_filter_offline: "Ngoại tuyến",
+        camera_filter_covered: "Bị che",
+        camera_layout: "Xem sơ đồ bố trí",
         cols_map: {
-            camera: ['STT', 'Đầu ghi NVR', 'NVR IP', 'Tên kênh', 'Tên camera', 'Địa chỉ IP', 'Số giờ ngoại tuyến', 'Thời gian ngoại tuyến', 'Thời gian cập nhật','Lý do ngoại lệ', 'Ghi chú'],
-            camera_exception: ['STT', 'Đầu ghi NVR', 'NVR IP', 'Tên kênh', 'Tên camera', 'Địa chỉ IP', 'Số giờ ngoại tuyến', 'Thời gian ngoại tuyến', 'Thời gian cập nhật', 'Lý do ngoại lệ', 'Thời gian điền nguyên nhân','Thời gian cập nhật nguyên nhân','Ghi chú'],
+            camera: ['STT', 'NVR IP', 'Tên kênh', 'Tên camera', 'Địa chỉ IP', 'Số giờ ngoại tuyến', 'Thời gian ngoại tuyến', 'Thời gian cập nhật', 'Ghi chú'],
+            camera_exception: ['STT', 'NVR IP', 'Tên kênh', 'Tên camera', 'Địa chỉ IP', 'Số giờ ngoại tuyến', 'Thời gian ngoại tuyến', 'Thời gian cập nhật', 'Lý do ngoại lệ', 'Thời gian điền nguyên nhân', 'Thời gian cập nhật nguyên nhân'],
             face: ['STT', 'Tên thiết bị', 'Mã đầu cuối', 'Địa chỉ IP', 'Số giờ offline', 'Thời gian', 'Thời gian cập nhật'],
             nvr: ['STT', 'Tên thiết bị', 'Địa chỉ IP', 'Số giờ offline', 'Thời gian', 'Thời gian cập nhật'],
             hr_face: ['STT', 'Bộ phận/Họ tên', 'Số lỗi đồng bộ', 'Thời gian cập nhật'],
@@ -121,7 +126,7 @@ const i18n = {
         login_title: "Đăng nhập",
         login_username: "Tài khoản",
         login_password: "Mật khẩu",
-        login_submit : "Đăng nhập",
+        login_submit: "Đăng nhập",
         modifyKey: "Key được sửa là",
         cameraName: "Tên camera"
     },
@@ -149,9 +154,12 @@ const i18n = {
         abnormal_detail: "Abnormal Details",
         section_label: "Abnormal Item:",
         update_time: "Update Time",
+        camera_filter_offline: "Offline",
+        camera_filter_covered: "Covered",
+        camera_layout: "View Layout",
         cols_map: {
-            camera: ['No.', 'NVR Host', 'NVR IP', 'Channel Name', 'Camera Name', 'IP Address', 'Offline Hours', 'Offline Time', 'Update Time','Reasons for exception', 'Remark'],
-            camera_exception: ['No.', 'NVR Host', 'NVR IP', 'Channel Name', 'Camera Name', 'IP Address', 'Offline Hours', 'Offline Time', 'Update Time', 'Reasons For Exception','ReasonCreateDate','ReasonUpdatedate', 'Remark'],
+            camera: ['No.', 'NVR IP', 'Channel Name', 'Camera Name', 'IP Address', 'Offline Hours', 'Offline Time', 'Update Time', 'Remark'],
+            camera_exception: ['No.', 'NVR IP', 'Channel Name', 'Camera Name', 'IP Address', 'Offline Hours', 'Offline Time', 'Update Time', 'Reason For Exception', 'Reason Create Date', 'Reason Update Date'],
             face: ['No.', 'Device Name', 'Terminal ID', 'IP Address', 'Offline Hours', 'Time', 'Update Time'],
             nvr: ['No.', 'Device Name', 'IP Address', 'Offline Hours', 'Time', 'Update Time'],
             hr_face: ['No.', 'Dept/Name', 'Sync Errors', 'Update Time'],
@@ -183,7 +191,7 @@ const i18n = {
         login_title: "Login",
         login_username: "UserName",
         login_password: "Password",
-        login_submit : "Login",
+        login_submit: "Login",
         modifyKey: "Modified key is",
         cameraName: "Camera Name"
     }
