@@ -26,10 +26,10 @@
         "normal": "select count(distinct ter_no) as count from itsec_face_facedbtoterminalstatus where status='1'"
       },
       "camera": {
-        "abnormal": "select count(*) as count from itsec_camera_offline_test where status<>'1' and (excludecamera is null or excludecamera='');",
+        "abnormal": "select count(*) as count from itsec_camera_offline_test where status='0' and (excludecamera is null or excludecamera='');",
         "normal": "select count(*) as count from itsec_camera_offline_test where status='1'",
         "exception": "select count(*) as count from itsec_camera_offline_test where status<>'1' and (excludecamera is not null and excludecamera!='')",
-        "covered": "select count(*) as count from itsec_camera_offline_test where status'2' and (excludecamera is null or excludecamera='');"
+        "covered": "select count(*) as count from itsec_camera_offline_test where status ='2' and (excludecamera is null or excludecamera='');"
       },
       "cameraexception": {
         "abnormal": "select count(*) as count from itsec_camera_offline_test where status<>'1' and (excludecamera is not null and excludecamera!='')"
@@ -48,7 +48,7 @@
       "hr_face": "select name,qty,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_face_dartofacedbstatus where status<>'1' order by updatedate",
       "hr_door": "select name,qty,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_door_dartodoordbstatus where status<>'1' order by updatedate",
       "perm": "select name,ter_no,ipaddress,sum(qty),TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_face_facedbtoterminalstatus where status='0' group by name,ter_no,ipaddress,updatedate order by ter_no",
-      "camera": "select b.name nvr_name,a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.excludecamera ,a.remark from itsec_camera_offline_test a inner join itsec_nvr_offline b on a.nvr_ip =b.ipaddress where a.status<>'1' and (excludecamera is null or excludecamera='') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
+      "camera": "select b.name nvr_name,a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.excludecamera ,a.remark from itsec_camera_offline_test a inner join itsec_nvr_offline b on a.nvr_ip =b.ipaddress where a.status='0' and (excludecamera is null or excludecamera='') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
       "camera_offline": "select b.name nvr_name,a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.excludecamera ,a.remark from itsec_camera_offline_test a inner join itsec_nvr_offline b on a.nvr_ip =b.ipaddress where a.status='0' and (excludecamera is null or excludecamera='') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
       "camera_covered": "select b.name nvr_name,a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.excludecamera ,a.remark from itsec_camera_offline_test a inner join itsec_nvr_offline b on a.nvr_ip =b.ipaddress where a.status='2' and (excludecamera is null or excludecamera='') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
       "cameraexception": "    select b.name nvr_name,a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.excludecamera,TO_CHAR(a.excludecreatedate, 'YYYY-MM-DD HH24:MI:SS') as excludecreatedate,TO_CHAR(a.excludeupdatedate, 'YYYY-MM-DD HH24:MI:SS') as excludeupdatedate  ,a.remark  from itsec_camera_offline_test a inner join itsec_nvr_offline b on a.nvr_ip =b.ipaddress where a.status<>'1' and (excludecamera is not null and excludecamera!='') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
