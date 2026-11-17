@@ -747,6 +747,9 @@ const mqttClient = mqtt.connect(MQTT_WS_URL, {
             if (type === "visitor") {
                 // KhÃƒÂ¡ch ra vÃƒÂ o trÃ¡ÂºÂ£ vÃ¡Â» danh sÃƒÂ¡ch chi tiÃ¡ÂºÂ¿t tÃ¡Â»Â«ng ngÃ†Â°Ã¡Â»i -> Ã„Ã¡ÂºÂ¿m theo sÃ¡Â»â€˜ dÃƒÂ²ng thÃ¡Â»Â±c tÃ¡ÂºÂ¿
                 total = rows.length;
+            } else if (type === 'camera' && !isSub && CAMERA_COUNTS.offline !== null && CAMERA_COUNTS.covered !== null) {
+                // Camera: "Chi tiết bất thường" = tổng bất thường (offline + covered), không đổi khi bấm nút lọc
+                total = CAMERA_COUNTS.offline + CAMERA_COUNTS.covered;
             } else if (!isSub && type.includes('hr')) {
                 // DÃ¡Â»Â¯ liÃ¡Â»â€¡u tÃ¡Â»â€¢ng hÃ¡Â»Â£p tÃ¡Â»Â« HR -> CÃ¡Â»â„¢ng dÃ¡Â»â€œn giÃƒÂ¡ trÃ¡Â»â€¹ Ã¡Â»Å¸ cÃ¡Â»â„¢t sÃ¡Â»â€˜ lÃ†Â°Ã¡Â»Â£ng (index 1)
                 rows.forEach(r => total += (parseInt(r[1]) || 0));
@@ -781,7 +784,13 @@ const mqttClient = mqtt.connect(MQTT_WS_URL, {
                 <tbody>`;
 
             if (rows.length === 0) {
-                html += `<tr><td colspan="${displayCols.length}" style="text-align:center;">${dict.no_data}</td></tr>`;
+                let hint = '';
+                if (type === 'camera' && !isSub && CAMERA_FILTER && (CAMERA_COUNTS[CAMERA_FILTER] || 0) > 0) {
+                    // Dashboard báo có camera nhưng server không trả dòng nào -> thường do backend thiếu SQL
+                    hint = `<div style="color:#faad14;font-size:12px;margin-top:6px">⚠ detail.camera_${CAMERA_FILTER} ?</div>`;
+                    console.warn(`[WVN] request detail 'camera_${CAMERA_FILTER}' trả 0 dòng nhưng dashboard báo ${CAMERA_COUNTS[CAMERA_FILTER]}: kiểm tra config.json trên backend có queries.detail.camera_${CAMERA_FILTER} chưa`);
+                }
+                html += `<tr><td colspan="${displayCols.length}" style="text-align:center;">${dict.no_data}${hint}</td></tr>`;
             } else {
                 html += rows.map((row, index) => {
                     let trAttr = "";
