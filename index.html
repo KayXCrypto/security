@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+l<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -338,9 +338,9 @@
     </div>
 
 
-    <script src="./languages.js"></script>
+    <script src="./languages.js?v=6"></script>
     <script src="./js/mqtt.min.js"></script>
-    <script src="./js/layout.js"></script>
+    <script src="./js/layout.js?v=6"></script>
     <script>
         // --- BIẾN TOÀN CỤC ---
         let CURRENT_DETAIL_DATA = null;
@@ -358,33 +358,9 @@
             return 'camera';
         }
 
-        // Cột cuối 'status' (nếu SQL có trả) chỉ dùng để lọc, không hiển thị.
-        const CAMERA_STATUS_VALUES = ['offline', 'covered'];
-        const hasStatusCell = r => r.length > 0 && CAMERA_STATUS_VALUES.includes(String(r[r.length - 1]).toLowerCase());
-        function stripStatus(rows) {
-            return (rows || []).map(r => hasStatusCell(r) ? r.slice(0, -1) : r);
-        }
+        // Mỗi nút lọc có SQL riêng trong config.json (camera / camera_offline / camera_covered)
         async function fetchCameraDetail() {
-            const url = 'wvn/security_qas/request/detail';
-            let data = await getMqttData(url, { type: cameraDetailType() });
-            if (data.success === false) return data;
-
-            // Backend cũ chưa có SQL riêng -> lấy 'camera' rồi tự lọc ở giao diện
-            const expected = CAMERA_FILTER ? (CAMERA_COUNTS[CAMERA_FILTER] || 0) : 0;
-            if (CAMERA_FILTER && expected > 0 && (!data.rows || data.rows.length === 0)) {
-                console.warn(`[WVN] backend chưa có detail.camera_${CAMERA_FILTER} -> dùng 'camera' và lọc ở giao diện`);
-                const all = await getMqttData(url, { type: 'camera' });
-                if (all.success === false) return all;
-                let rows = all.rows || [];
-                if (rows.some(hasStatusCell)) {
-                    rows = rows.filter(r => hasStatusCell(r) && String(r[r.length - 1]).toLowerCase() === CAMERA_FILTER);
-                } else if (CAMERA_FILTER === 'covered') {
-                    rows = [];
-                }
-                data = { ...all, rows };
-            }
-            data.rows = stripStatus(data.rows);
-            return data;
+            return await getMqttData('wvn/security_qas/request/detail', { type: cameraDetailType() });
         }
 
         function applyCameraFilterLabels() {
@@ -474,14 +450,14 @@
             document.getElementById('edit-exclude-label').textContent = dict.exclude_label;
             document.getElementById('edit-exclude-input').placeholder = dict.exclude_placeholder;
             document.getElementById('edit-btn-cancel').textContent = dict.cancel;
-            document.getElementById('edit-btn-save').textContent = '💾' + dict.save;
+            document.getElementById('edit-btn-save').textContent = '\uD83D\uDCBE' + dict.save;
             if (document.getElementById('edit-overlay').classList.contains('active')) {
                 const btn = document.querySelector('#modal-table-container .btn-edit-remark[data-row-index="' + EDIT_ROW_INDEX + '"]');
                 if (btn) openEditModal(EDIT_ROW_INDEX, btn);
             }
 
             // Login modal theo ngôn ngữ
-            document.getElementById('login-modal-title').textContent = dict.login_title || '🔒 Login';
+            document.getElementById('login-modal-title').textContent = dict.login_title || '\uD83D\uDD12 Login';
             document.getElementById('login-label-username').textContent = dict.login_username || 'Username';
             document.getElementById('login-label-password').textContent = dict.login_password || 'Password';
             document.getElementById('login-btn-cancel').textContent = dict.cancel || 'Cancel';
@@ -548,6 +524,7 @@
                 if (key === 'camera') {
                     const exceptionEl = document.getElementById('camera-exception');
 
+                    // config: abnormal = status='0' (chỉ ngoại tuyến), covered = status='2' (bị che) -> hai số độc lập
                     CAMERA_COUNTS.offline = data.camera.abnormal ?? 0;
                     CAMERA_COUNTS.covered = data.camera.covered ?? 0;
                     CAMERA_COUNTS.exception = data.camera.exception ?? 0;
@@ -745,14 +722,9 @@
             let total = 0;
             if (type === "visitor") {
                 total = rows.length;
-            } else if (type === 'camera_exception' && !isSub) {
-                total = CAMERA_COUNTS.exception ?? rows.length;
-            } else if (type === 'camera' && !isSub &&
-                (CAMERA_COUNTS.offline !== null || CAMERA_COUNTS.covered !== null)) {
-                // FIX: đang lọc -> số của nút đó; không lọc -> offline + covered (vd 6 + 3 = 9)
-                total = CAMERA_FILTER
-                    ? (CAMERA_COUNTS[CAMERA_FILTER] ?? rows.length)
-                    : (CAMERA_COUNTS.offline ?? 0) + (CAMERA_COUNTS.covered ?? 0);
+            } else if (type === 'camera' || type === 'camera_exception') {
+                // Đếm theo số dòng thực tế của bảng để luôn khớp với những gì đang hiển thị
+                total = rows.length;
             } else if (!isSub && type.includes('hr')) {
                 rows.forEach(r => total += (parseInt(r[1]) || 0));
             } else {
@@ -771,7 +743,7 @@
             // --- Dựng bảng ---
             // Camera (offline/covered) và camera_exception có cột ✏️ để sửa ghi chú / lý do
             const showEdit = !isSub && (type === 'camera' || type === 'camera_exception');
-            const displayCols = showEdit ? [...(cols || []), '✏️'] : (cols || []);
+            const displayCols = showEdit ? [...(cols || []), '&#9998;'] : (cols || []);
 
             let html = `<table class="detail-table">
                 <thead>
@@ -795,7 +767,7 @@
                         trAttr = `onclick="openPersonnelDetail('${subType}', '${identifier}')" style="cursor:pointer" class="clickable-row"`;
                     }
 
-                    // row = [nvr_ip(0), nvr_cameraid(1), name(2), ipaddress(3), hours(4), offlinetime(5), updatedate(6), remark/reason(7), ...]
+                    // row = [nvr_name(0), nvr_ip(1), nvr_cameraid(2), name(3), ipaddress(4), hours(5), offlinetime(6), updatedate(7), excludecamera(8), ...]
                     let editBtn = '';
                     if (showEdit) {
                         editBtn = `<td onclick="event.stopPropagation()">
@@ -891,7 +863,7 @@
             PENDING_EDIT_BTN_EL = btnEl;
 
             const dict = window.i18n[CURRENT_LANG];
-            document.getElementById('login-modal-title').textContent = dict.login_title || '🔒 Login';
+            document.getElementById('login-modal-title').textContent = dict.login_title || '\uD83D\uDD12 Login';
             document.getElementById('login-label-username').textContent = dict.login_username || 'Username';
             document.getElementById('login-label-password').textContent = dict.login_password || 'Password';
             document.getElementById('login-btn-cancel').textContent = dict.cancel || 'Cancel';
@@ -957,12 +929,12 @@
                         PENDING_EDIT_BTN_EL = null;
                     }
                 } else {
-                    errorEl.textContent = '⌛ ' + (data.message || dict.login_error || 'Login Fail!');
+                    errorEl.textContent = '\u231B ' + (data.message || dict.login_error || 'Login Fail!');
                     document.getElementById('login-password').value = '';
                     document.getElementById('login-password').focus();
                 }
             } catch (err) {
-                errorEl.textContent = '⌛' + (dict.login_network_error || 'Connect Server Error!');
+                errorEl.textContent = '\u231B' + (dict.login_network_error || 'Connect Server Error!');
                 console.error('Login API error:', err);
             } finally {
                 submitBtn.disabled = false;
@@ -982,23 +954,23 @@
             const dict = window.i18n[CURRENT_LANG];
             const cols = dict.cols_map['camera'];
 
-            // row = [nvr_ip(0), nvr_cameraid(1), name(2), ipaddress(3), hours(4), offlinetime(5), updatedate(6), remark(7)]
-            const cameraName = row[2] || '';
-            const ip = row[0] || '';
-            const id = row[1] || '';
+            // row = [nvr_name(0), nvr_ip(1), nvr_cameraid(2), name(3), ipaddress(4), hours(5), offlinetime(6), updatedate(7), excludecamera(8), ...]
+            const cameraName = row[3] || '';
+            const ip = row[1] || '';
+            const id = row[2] || '';
 
             document.getElementById('edit-modal-title').textContent = dict.edit_exception;
             document.getElementById('edit-exclude-label').textContent = dict.exclude_label;
             document.getElementById('edit-exclude-hint').textContent = dict.exclude_hint;
             document.getElementById('edit-btn-cancel').textContent = dict.cancel;
-            document.getElementById('edit-btn-save').textContent = '💾' + dict.save;
+            document.getElementById('edit-btn-save').textContent = '\uD83D\uDCBE' + dict.save;
             document.getElementById('edit-exclude-input').placeholder = dict.exclude_placeholder;
 
             document.getElementById('edit-camera-info').innerHTML =
-                `${cols[3]}: <b style="color:#fff">${cameraName}</b><br>` +
+                `${cols[4]}: <b style="color:#fff">${cameraName}</b><br>` +
                 `${dict.modifyKey}: <b style="color:#fff"> ${ip} | ${id}</b>`;
 
-            document.getElementById('edit-exclude-input').value = row[7] || '';
+            document.getElementById('edit-exclude-input').value = row[8] || '';   // excludecamera
             document.getElementById('edit-status-msg').textContent = '';
             document.getElementById('edit-overlay').classList.add('active');
         }
@@ -1016,11 +988,11 @@
             const statusEl = document.getElementById('edit-status-msg');
             const dict = window.i18n[CURRENT_LANG];
 
-            // row = [nvr_ip(0), nvr_cameraid(1), name(2), ipaddress(3), ...]
+            // row = [nvr_name(0), nvr_ip(1), nvr_cameraid(2), name(3), ipaddress(4), ...]
             const row = EDIT_ROW_DATA;
-            const nvrIp = row[0];
-            const nvr_cameraid = row[1];
-            const ipaddress = row[3];
+            const nvrIp = row[1];
+            const nvr_cameraid = row[2];
+            const ipaddress = row[4];
 
             statusEl.style.color = '#aaa';
             statusEl.textContent = dict.saving;
