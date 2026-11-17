@@ -353,24 +353,15 @@
         let PREVIOUS_TYPE = "";
         let CURRENT_LANG = localStorage.getItem('lang') || 'zh';
         let GLOBAL_CONTACTS_DATA = [];
-        let CAMERA_FILTER = null;          // null = hiển thị tất cả, 'offline' | 'covered' = lọc theo trạng thái
-        const CAMERA_STATUS_IDX = 9;       // vị trí cột status trong row (cột cuối của query camera)
-        let CAMERA_COUNTS = { offline: 0, covered: 0 };
+        let CAMERA_FILTER = null;          // null = hiển thị tất cả
+                let CAMERA_COUNTS = { offline: null, covered: null };   // null = dashboard chưa gửi số
 
-        function getCameraCounts(rows) {
-            const counts = { offline: 0, covered: 0 };
-            (rows || []).forEach(r => {
-                const s = String(r[CAMERA_STATUS_IDX] || '').toLowerCase();
-                if (s === 'offline') counts.offline++;
-                else if (s === 'covered') counts.covered++;
-            });
-            return counts;
-        }
 
-        // Lọc danh sách camera theo nút đang chọn (null = tất cả)
-        function getCameraRows(rows) {
-            if (!CAMERA_FILTER) return rows || [];
-            return (rows || []).filter(r => String(r[CAMERA_STATUS_IDX] || '').toLowerCase() === CAMERA_FILTER);
+        // Loại detail gửi lên server theo nút đang chọn (mỗi loại là 1 SQL 9 cột trong config.json)
+        function cameraDetailType() {
+            if (CAMERA_FILTER === 'offline') return 'camera_offline';
+            if (CAMERA_FILTER === 'covered') return 'camera_covered';
+            return 'camera';
         }
 
         function applyCameraFilterLabels() {
@@ -383,20 +374,30 @@
             const btnOff = document.getElementById('btn-filter-offline');
             const btnCov = document.getElementById('btn-filter-covered');
 
-            btnOff.innerHTML = `${t.offline} <span class="filter-count">${CAMERA_COUNTS.offline}</span>`;
-            btnCov.innerHTML = `${t.covered} <span class="filter-count">${CAMERA_COUNTS.covered}</span>`;
+            // Số lượng lấy từ SQL dashboard (abnormal = offline, covered = bị che)
+            const nOff = CAMERA_COUNTS.offline ?? 0;
+            const nCov = CAMERA_COUNTS.covered ?? 0;
+
+            btnOff.innerHTML = `${t.offline} <span class="filter-count">${nOff}</span>`;
+            btnCov.innerHTML = `${t.covered} <span class="filter-count">${nCov}</span>`;
 
             btnOff.classList.toggle('active', CAMERA_FILTER === 'offline');
             btnCov.classList.toggle('active', CAMERA_FILTER === 'covered');
         }
 
         // Bấm lần nữa vào nút đang chọn thì bỏ lọc, quay lại hiển thị tất cả
-        function setCameraFilter(status) {
+        let CAMERA_REQ_SEQ = 0;
+        async function setCameraFilter(status) {
             CAMERA_FILTER = (CAMERA_FILTER === status) ? null : status;
             applyCameraFilterLabels();
-            if (CURRENT_DETAIL_DATA && CURRENT_DETAIL_DATA.rows) {
-                renderTable(CURRENT_DETAIL_DATA.rows, CURRENT_TYPE);
-            }
+
+            const seq = ++CAMERA_REQ_SEQ;
+            try {
+                const data = await getMqttData('wvn/security_qas/request/detail', { type: cameraDetailType() });
+                if (seq !== CAMERA_REQ_SEQ || CURRENT_TYPE !== 'camera') return;   // bỏ kết quả cũ nếu đã bấm nút khác
+                CURRENT_DETAIL_DATA = data;
+                renderTable(data.rows, 'camera');
+            } catch (e) { console.error(e); }
         }
 
         // --- QUÃ¡ÂºÂ¢N LÃƒ NGÃƒâ€N NGÃ¡Â»Â® ---
@@ -464,14 +465,14 @@
             document.getElementById('edit-exclude-input').placeholder =
                 dict.exclude_placeholder;
 
-            document.getElementById('btn-cancel-edit').textContent =
+            document.getElementById('edit-btn-cancel').textContent =
                 dict.cancel;
 
             // document.getElementById('btn-delete-exception').innerHTML =
             //     dict.delete_exception;
 
-            document.getElementById('btn-save-exception').innerHTML =
-                dict.save;
+            document.getElementById('edit-btn-save').textContent =
+                '💾' + dict.save;
             if (document.getElementById('edit-overlay').classList.contains('active')) {
                 const btn = document.querySelector('#modal-table-container .btn-edit-remark[data-row-index="' + EDIT_ROW_INDEX + '"]');
                 if (btn) openEditModal(EDIT_ROW_INDEX, btn);
@@ -489,7 +490,12 @@
         }
 
         // --- KÃ¡ÂºÂ¾T NÃ¡Â»I MQTT ---mqtt://localhost:1883
-        const mqttClient = mqtt.connect('wss://wvnitsec.wistron.com/mqtt', {
+        // Mặc định dùng broker trên máy chủ. Để thử với server.js chạy local, mở F12 Console rồi gõ:
+//   localStorage.setItem('mqttUrl','ws://localhost:9001'); location.reload();
+// Quay lại mặc định:  localStorage.removeItem('mqttUrl'); location.reload();
+const MQTT_WS_URL = localStorage.getItem('mqttUrl') || 'wss://wvnitsec.wistron.com/mqtt';
+console.log('[WVN] build r5 | MQTT =', MQTT_WS_URL);
+const mqttClient = mqtt.connect(MQTT_WS_URL, {
             keepalive: 30,
             protocolVersion: 4,
             clean: true,
@@ -539,14 +545,19 @@
 
                 if (key === 'camera') {
                     const exceptionEl = document.getElementById('camera-exception');
-                    CAMERA_COUNTS.offline = data.camera.abnormal || 0;
-                    CAMERA_COUNTS.covered = data.camera.covered || 0;
+                    console.log('[WVN] dashboard.camera =', JSON.stringify(data.camera));
+                    CAMERA_COUNTS.offline = (data.camera.abnormal !== undefined) ? data.camera.abnormal : null;   // abnormal = offline
+                    CAMERA_COUNTS.covered = (data.camera.covered !== undefined) ? data.camera.covered : null;
                     if (CURRENT_TYPE === 'camera') applyCameraFilterLabels();
                     if (exceptionEl) {
-                        // Ngoại lệ = Abnormal (offline) + Covered
-                        const exceptionVal = CAMERA_COUNTS.offline + CAMERA_COUNTS.covered;
+                        const exceptionVal = (CAMERA_COUNTS.offline ?? 0) + (CAMERA_COUNTS.covered ?? 0);   // tổng = offline + covered
                         exceptionEl.textContent = exceptionVal;
-                        exceptionEl.classList.toggle('is-zero', exceptionVal === 0);
+
+                        if (exceptionVal > 0) {
+                            exceptionEl.classList.remove('is-zero');
+                        } else {
+                            exceptionEl.classList.add('is-zero');
+                        }
                     }
                 }
             });
@@ -660,7 +671,7 @@
             document.getElementById('modal-section-header').style.display = 'block';
             document.getElementById('btn-excel-download').style.display = 'block';
             document.getElementById('btn-camera-map').style.display = (type === 'camera') ? 'block' : 'none';
-            CAMERA_FILTER = (type === 'camera') ? presetFilter : null;
+            CAMERA_FILTER = (type === 'camera') ? presetFilter : null;   // vòng tròn đỏ mở thẳng bảng Offline
             document.getElementById('camera-filter-bar').style.display = (type === 'camera') ? 'flex' : 'none';
             applyCameraFilterLabels();
 
@@ -669,19 +680,16 @@
             document.getElementById('overlay').classList.add('active');
 
             // Map 'camera_exception' -> backend dÃƒÂ¹ng key 'cameraexception'
-            const requestType = (type === 'camera_exception') ? 'cameraexception' : type;
+            const requestType = (type === 'camera_exception') ? 'cameraexception' : (type === 'camera' ? cameraDetailType() : type);
             const titleKey = dict[type] || dict[requestType] || type;
             document.getElementById('modal-title').textContent = `${titleKey} - ${dict.abnormal_detail}`;
 
-            CURRENT_DETAIL_DATA = null;   // thêm trước khi gọi getMqttData
+            CURRENT_DETAIL_DATA = null;
 
             try {
                 const data = await getMqttData('wvn/security_qas/request/detail', { type: requestType });
                 CURRENT_DETAIL_DATA = data;
-                if (type === 'camera') {
-                    CAMERA_COUNTS = getCameraCounts(data.rows);   // số offline / covered thực tế trong bảng
-                    applyCameraFilterLabels();
-                }
+                if (type === 'camera') applyCameraFilterLabels();
                 renderTable(data.rows, type);
             } catch (e) { console.error(e); }
         }
@@ -711,9 +719,6 @@
             const dict = window.i18n[CURRENT_LANG];
             const countVal = document.getElementById('section-count-val');
 
-            if (type === 'camera' && !isSub) {
-                rows = getCameraRows(rows);
-            }
 
             if (isSub) {
                 countVal.onclick = null;
@@ -834,24 +839,25 @@
 
         function closeModal() {
             document.getElementById('overlay').classList.remove('active');
-            DIT_ROW_INDEX = null;
+            EDIT_ROW_INDEX = null;
+            EDIT_ROW_DATA = null;
+            CAMERA_FILTER = null;
             IS_LOGGED_IN = false;
         }
 
         function downloadCSV() {
-            let exportRows = CURRENT_DETAIL_DATA.rows;
-            if (CURRENT_TYPE === 'camera') exportRows = getCameraRows(exportRows);
-
-            let csv = '\uFEFF' + cols.join(',') + '\n';
-            exportRows.forEach((r, i) => {
-                csv += [i + 1, ...r].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(',') + '\n';
-            });
             if (!CURRENT_DETAIL_DATA || CURRENT_TYPE === "it_contacts") return;
             const dict = window.i18n[CURRENT_LANG];
             let colKey = CURRENT_TYPE.replace('sub_', '').replace('hrface', 'hr_face').replace('hrdoor', 'hr_door');
             if (colKey === 'camera_exception') colKey = 'camera';
             const cols = CURRENT_TYPE.startsWith('sub_') ? dict.cols_map_sub[colKey] : (dict.cols_map[CURRENT_TYPE] || dict.cols_map[colKey]);
 
+            const exportRows = CURRENT_DETAIL_DATA.rows;
+
+            let csv = '\uFEFF' + cols.join(',') + '\n';
+            exportRows.forEach((r, i) => {
+                csv += [i + 1, ...r].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(',') + '\n';
+            });
 
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -1016,14 +1022,13 @@
         // }
 
         async function saveExcludeCamera() {
-            if (EDIT_ROW_INDEX === null || !CURRENT_DETAIL_DATA) return;
+            if (!EDIT_ROW_DATA || !CURRENT_DETAIL_DATA) return;
 
             const newValue = document.getElementById('edit-exclude-input').value.trim();
             const statusEl = document.getElementById('edit-status-msg');
             const dict = window.i18n[CURRENT_LANG];
 
-            //const row = CURRENT_DETAIL_DATA.rows[EDIT_ROW_INDEX];
-            const row = EDIT_ROW_DATA;          // thay cho CURRENT_DETAIL_DATA.rows[EDIT_ROW_INDEX]
+            const row = EDIT_ROW_DATA;   // lấy từ nút bấm, vẫn đúng khi đang lọc
             const nvrIp = row[1];
             const nvr_cameraid = row[2];
             const ipaddress = row[4];
@@ -1051,7 +1056,7 @@
                     statusEl.textContent = newValue ? dict.save_success : dict.delete_success;
 
                     // --- RELOAD lại toàn bộ bảng từ server (thay vì chỉ patch local) ---
-                    const requestType = isCameraException ? 'cameraexception' : CURRENT_TYPE;
+                    const requestType = isCameraException ? 'cameraexception' : (CURRENT_TYPE === 'camera' ? cameraDetailType() : CURRENT_TYPE);
                     const freshData = await getMqttData('wvn/security_qas/request/detail', { type: requestType });
                     CURRENT_DETAIL_DATA = freshData;
                     renderTable(freshData.rows, CURRENT_TYPE);
