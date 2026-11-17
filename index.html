@@ -349,7 +349,8 @@
         let CURRENT_LANG = localStorage.getItem('lang') || 'zh';
         let GLOBAL_CONTACTS_DATA = [];
         let CAMERA_FILTER = null;          // null = hiển thị tất cả
-        let CAMERA_COUNTS = { offline: null, covered: null, exception: null };   // null = dashboard chưa gửi số
+        let CAMERA_COUNTS = { offline: null, covered: null, exception: null };
+        let CAMERA_ROWS = null;            // { offline: [...], covered: [...] } - dữ liệu thật của popup camera   // null = dashboard chưa gửi số
 
         // Loại detail gửi lên server theo nút đang chọn (mỗi loại là 1 SQL trong config.json)
         function cameraDetailType() {
@@ -359,8 +360,27 @@
         }
 
         // Mỗi nút lọc có SQL riêng trong config.json (camera / camera_offline / camera_covered)
+        // Luôn lấy cả 2 danh sách (offline + covered). Số trên nút = số dòng thực tế của từng danh sách.
+        //  - Không chọn nút: hiển thị tổng (offline + covered)
+        //  - Chọn "Ngoại tuyến" / "Bị che": chỉ hiển thị danh sách tương ứng
         async function fetchCameraDetail() {
-            return await getMqttData('wvn/security_qas/request/detail', { type: cameraDetailType() });
+            const url = 'wvn/security_qas/request/detail';
+            const [off, cov] = await Promise.all([
+                getMqttData(url, { type: 'camera_offline' }),
+                getMqttData(url, { type: 'camera_covered' })
+            ]);
+            if (off.success === false) return off;
+            if (cov.success === false) return cov;
+
+            CAMERA_ROWS = { offline: off.rows || [], covered: cov.rows || [] };
+            CAMERA_COUNTS.offline = CAMERA_ROWS.offline.length;
+            CAMERA_COUNTS.covered = CAMERA_ROWS.covered.length;
+
+            let rows;
+            if (CAMERA_FILTER === 'offline') rows = CAMERA_ROWS.offline;
+            else if (CAMERA_FILTER === 'covered') rows = CAMERA_ROWS.covered;
+            else rows = [...CAMERA_ROWS.offline, ...CAMERA_ROWS.covered];
+            return { ...off, rows };
         }
 
         function applyCameraFilterLabels() {
@@ -524,9 +544,11 @@
                 if (key === 'camera') {
                     const exceptionEl = document.getElementById('camera-exception');
 
-                    // Số "Ngoại tuyến" trong popup = abnormal - covered (vòng tròn ngoài dashboard vẫn hiện abnormal)
-                    CAMERA_COUNTS.covered = data.camera.covered ?? 0;
-                    CAMERA_COUNTS.offline = Math.max((data.camera.abnormal ?? 0) - CAMERA_COUNTS.covered, 0);
+                    // Khi popup đang mở, số trên nút lấy từ số dòng thực tế (CAMERA_ROWS), không ghi đè bằng số dashboard
+                    if (!CAMERA_ROWS) {
+                        CAMERA_COUNTS.offline = data.camera.abnormal ?? 0;
+                        CAMERA_COUNTS.covered = data.camera.covered ?? 0;
+                    }
                     CAMERA_COUNTS.exception = data.camera.exception ?? 0;
 
                     if (CURRENT_TYPE === 'camera') {
@@ -817,6 +839,7 @@
             EDIT_ROW_INDEX = null;
             EDIT_ROW_DATA = null;
             CAMERA_FILTER = null;
+            CAMERA_ROWS = null;
             IS_LOGGED_IN = false;
         }
 
