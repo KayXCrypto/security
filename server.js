@@ -276,57 +276,26 @@ mqttClient.on('message', async (topic, message) => {
 
         // --- Đọc dữ liệu chi tiết ---
         const { sql, params } = resolveReadQuery(action, type, id);
-
-        console.log("TYPE =", type);
-        console.log("SQL =", sql);
-
-        const res = await pool.query(sql, params);
-
-        console.log("ROWS =", res.rows.length);
         logger.info(`REQUEST => action=${action}, type=${type}`);
-
-        let rows = [];
 
         if (!sql) {
             logger.warn(`No query configured for ${action} [${type}]`);
-
             mqttClient.publish(responseTopic, JSON.stringify({
-                requestId,
-                rows: [],
-                success: false,
-                error: `Missing SQL config for ${type}`
+                requestId, rows: [], success: false, error: `Missing SQL config for ${type}`
             }));
             return;
         }
 
-        logger.info(`SQL found for [${type}]`);
-
+        let rows = [];
         try {
-            const res = await pool.query(sql, params);
-
-            logger.info(
-                `[${type}] returned ${res.rows.length} rows`
-            );
-
-            if (res.rows.length > 0) {
-                logger.info(
-                    `[${type}] sample row`,
-                    JSON.stringify(res.rows[0])
-                );
-            }
-
-            rows = res.rows.map(o => Object.values(o));
+            const res = await pool.query(sql, params);          // chỉ chạy 1 lần
+            rows = res.rows.map(o => Object.values(o));         // Object -> Array cho renderTable
+            logger.info(`[${type}] returned ${rows.length} rows`);
+            if (res.rows.length > 0) logger.info(`[${type}] sample row`, JSON.stringify(res.rows[0]));
         } catch (sqlErr) {
-            logger.error(
-                `SQL execution error [${type}]`,
-                sqlErr
-            );
-
+            logger.error(`SQL execution error [${type}]`, sqlErr.message);
             mqttClient.publish(responseTopic, JSON.stringify({
-                requestId,
-                rows: [],
-                success: false,
-                error: sqlErr.message
+                requestId, rows: [], success: false, error: sqlErr.message
             }));
             return;
         }
