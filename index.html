@@ -59,13 +59,13 @@
                 <div class="card-title" id="camera-title-text">摄像头离线数量</div>
                 <div class="circles-row">
                     <div class="circle-wrap">
-                        <div class="circle abnormal clickable" id="camera-abnormal"
-                            onclick="openModal('camera', 'offline')">0
+                        <div class="circle abnormal clickable" id="camera-abnormal" onclick="openModal('camera', 'offline')">0
                         </div>
                         <div class="circle-label">异常数(台)</div>
                     </div>
                     <div class="circle-wrap">
-                        <div class="circle exception clickable" id="camera-exception" onclick="openModal('camera')">0
+                        <div class="circle exception clickable" id="camera-exception"
+                            onclick="openModal('camera')">0
                         </div>
                         <div class="circle-label" id="camera-exception-label">例外数(台)</div>
                     </div>
@@ -354,7 +354,7 @@
         let CURRENT_LANG = localStorage.getItem('lang') || 'zh';
         let GLOBAL_CONTACTS_DATA = [];
         let CAMERA_FILTER = null;          // null = hiển thị tất cả
-        let CAMERA_COUNTS = { offline: null, covered: null };   // null = dashboard chưa gửi số
+                let CAMERA_COUNTS = { offline: null, covered: null };   // null = dashboard chưa gửi số
 
 
         // Loại detail gửi lên server theo nút đang chọn (mỗi loại là 1 SQL 9 cột trong config.json)
@@ -491,11 +491,11 @@
 
         // --- KÃ¡ÂºÂ¾T NÃ¡Â»I MQTT ---mqtt://localhost:1883
         // Mặc định dùng broker trên máy chủ. Để thử với server.js chạy local, mở F12 Console rồi gõ:
-        //   localStorage.setItem('mqttUrl','ws://localhost:9001'); location.reload();
-        // Quay lại mặc định:  localStorage.removeItem('mqttUrl'); location.reload();
-        const MQTT_WS_URL = localStorage.getItem('mqttUrl') || 'wss://wvnitsec.wistron.com/mqtt';
-        console.log('[WVN] build r5 | MQTT =', MQTT_WS_URL);
-        const mqttClient = mqtt.connect(MQTT_WS_URL, {
+//   localStorage.setItem('mqttUrl','ws://localhost:9001'); location.reload();
+// Quay lại mặc định:  localStorage.removeItem('mqttUrl'); location.reload();
+const MQTT_WS_URL = localStorage.getItem('mqttUrl') || 'wss://wvnitsec.wistron.com/mqtt';
+console.log('[WVN] build r5 | MQTT =', MQTT_WS_URL);
+const mqttClient = mqtt.connect(MQTT_WS_URL, {
             keepalive: 30,
             protocolVersion: 4,
             clean: true,
@@ -681,32 +681,17 @@
 
             // Map 'camera_exception' -> backend dÃƒÂ¹ng key 'cameraexception'
             const requestType = (type === 'camera_exception') ? 'cameraexception' : (type === 'camera' ? cameraDetailType() : type);
-
-            console.log(
-                'REQUEST TYPE =',
-                requestType,
-                'FILTER =',
-                CAMERA_FILTER
-            );
             const titleKey = dict[type] || dict[requestType] || type;
             document.getElementById('modal-title').textContent = `${titleKey} - ${dict.abnormal_detail}`;
 
             CURRENT_DETAIL_DATA = null;
 
             try {
-                const data = await getMqttData(
-                    'wvn/security_qas/request/detail',
-                    { type: requestType }
-                );
-
-                console.log("DETAIL RESPONSE", data);
-
-                if (data.success === false) {
-                    alert(data.error);
-                    return;
-                }
-
+                const data = await getMqttData('wvn/security_qas/request/detail', { type: requestType });
+                console.log('DETAIL RESPONSE', data);
+                if (data.success === false) { alert(data.error); return; }
                 CURRENT_DETAIL_DATA = data;
+                if (type === 'camera') applyCameraFilterLabels();
                 renderTable(data.rows, type);
             } catch (e) { console.error(e); }
         }
@@ -764,9 +749,10 @@
             if (type === "visitor") {
                 // KhÃƒÂ¡ch ra vÃƒÂ o trÃ¡ÂºÂ£ vÃ¡Â» danh sÃƒÂ¡ch chi tiÃ¡ÂºÂ¿t tÃ¡Â»Â«ng ngÃ†Â°Ã¡Â»i -> Ã„Ã¡ÂºÂ¿m theo sÃ¡Â»â€˜ dÃƒÂ²ng thÃ¡Â»Â±c tÃ¡ÂºÂ¿
                 total = rows.length;
-            } else if (type === 'camera' && !isSub && CAMERA_COUNTS.offline !== null && CAMERA_COUNTS.covered !== null) {
-                // Camera: "Chi tiết bất thường" = tổng bất thường (offline + covered), không đổi khi bấm nút lọc
-                total = CAMERA_COUNTS.offline + CAMERA_COUNTS.covered;
+            } else if (type === 'camera' && !isSub && (CAMERA_COUNTS.offline !== null || CAMERA_COUNTS.covered !== null)) {
+                // Camera: "Chi tiết bất thường" = tổng bất thường (offline + covered), không đổi khi bấm nút lọc.
+                // Nếu dashboard chưa gửi covered thì coi covered = 0 (vẫn hiện tổng = offline)
+                total = (CAMERA_COUNTS.offline ?? 0) + (CAMERA_COUNTS.covered ?? 0);
             } else if (!isSub && type.includes('hr')) {
                 // DÃ¡Â»Â¯ liÃ¡Â»â€¡u tÃ¡Â»â€¢ng hÃ¡Â»Â£p tÃ¡Â»Â« HR -> CÃ¡Â»â„¢ng dÃ¡Â»â€œn giÃƒÂ¡ trÃ¡Â»â€¹ Ã¡Â»Å¸ cÃ¡Â»â„¢t sÃ¡Â»â€˜ lÃ†Â°Ã¡Â»Â£ng (index 1)
                 rows.forEach(r => total += (parseInt(r[1]) || 0));
