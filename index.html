@@ -769,9 +769,9 @@
             countVal.textContent = `${total} ${isPeople ? dict.unit_ren : dict.unit_tai}`;
 
             // --- Dựng bảng ---
-            // FIX: bỏ cột ✏️ và khai báo editBtn để không còn ReferenceError / ký tự "..." lọt vào <tbody>
-            const displayCols = cols || [];
-            const editBtn = '';
+            // Camera (offline/covered) và camera_exception có cột ✏️ để sửa ghi chú / lý do
+            const showEdit = !isSub && (type === 'camera' || type === 'camera_exception');
+            const displayCols = showEdit ? [...(cols || []), '✏️'] : (cols || []);
 
             let html = `<table class="detail-table">
                 <thead>
@@ -793,6 +793,18 @@
                         let subType = type === 'perm' ? 'sub_perm' : (type === 'hr_face' ? 'sub_hrface' : 'sub_hrdoor');
                         let identifier = (type === 'perm') ? row[1] : row[0];
                         trAttr = `onclick="openPersonnelDetail('${subType}', '${identifier}')" style="cursor:pointer" class="clickable-row"`;
+                    }
+
+                    // row = [nvr_ip(0), nvr_cameraid(1), name(2), ipaddress(3), hours(4), offlinetime(5), updatedate(6), remark/reason(7), ...]
+                    let editBtn = '';
+                    if (showEdit) {
+                        editBtn = `<td onclick="event.stopPropagation()">
+                            <button class="btn-edit-remark" onclick="handleEditClick(event, ${index})"
+                                data-row='${JSON.stringify(row).replace(/'/g, "&#39;")}'
+                                data-row-index="${index}">
+                                ${dict.edit}
+                            </button>
+                        </td>`;
                     }
 
                     return `<tr ${trAttr}>
