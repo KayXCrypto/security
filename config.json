@@ -2,7 +2,7 @@
   "db": {
     "host": "10.69.20.68",
     "user": "itdmd",
-    "password": "T_cTe09pVM^Ijyvw",
+    "password": "YOUR_DB_PASSWORD",
     "database": "VNCCISQ1",
     "port": 5433,
     "ssl": false
@@ -28,7 +28,8 @@
       "camera": {
         "abnormal": "select count(distinct ipaddress) as count from itsec_camera_offline_test where status='0'",
         "normal": "select count(distinct ipaddress) as count from itsec_camera_offline_test where status='1'",
-        "covered": "select count(distinct ipaddress) as count from itsec_camera_offline_test where status='2'"
+        "covered": "select count(distinct ipaddress) as count from itsec_camera_offline_test where status='2'",
+        "exception": "select count(distinct ipaddress) as count from itsec_camera_exception"
       },
       "nvr": {
         "abnormal": "select count(distinct ipaddress) as count from itsec_nvr_offline where status<>'1'",
@@ -47,6 +48,7 @@
       "camera": "select a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.remark,case when a.status='2' then 'covered' else 'offline' end as status from itsec_camera_offline_test a where a.status in ('0','2') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
       "camera_offline": "select a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.remark,case when a.status='2' then 'covered' else 'offline' end as status from itsec_camera_offline_test a where a.status in ('0') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
       "camera_covered": "select a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.remark,case when a.status='2' then 'covered' else 'offline' end as status from itsec_camera_offline_test a where a.status in ('2') order by a.nvr_ip,a.nvr_cameraid,a.updatedate",
+      "cameraexception": "select a.nvr_ip,a.nvr_cameraid,a.name,a.ipaddress,round(a.offlineminute::numeric/60,1) hours,TO_CHAR(a.offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(a.updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate,a.reason,TO_CHAR(a.reason_createdate, 'YYYY-MM-DD HH24:MI:SS') as reason_createdate,TO_CHAR(a.reason_updatedate, 'YYYY-MM-DD HH24:MI:SS') as reason_updatedate from itsec_camera_exception a order by a.nvr_ip,a.nvr_cameraid",
       "nvr": "select name,ipaddress,round(offlineminute::numeric/60,1) hours,TO_CHAR(offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_nvr_offline where status='0' order by updatedate",
       "accesscontrol": "select name,ipaddress,round(offlineminute::numeric/60,1) hours,TO_CHAR(offlinetime, 'YYYY-MM-DD HH24:MI:SS') as offlinetime,TO_CHAR(updatedate, 'YYYY-MM-DD HH24:MI:SS') as updatedate from itsec_door_offline where status='0' order by updatedate "
     },
