@@ -1,31 +1,336 @@
-CREATE TABLE isms.computerinfooffline (
-	computername varchar(50) NULL,
-	ipaddress varchar(50) NOT NULL,
-	osuserid varchar(30) NULL,
-	trndate timestamp NULL,
-	updatedate timestamp NULL,
-	domainname varchar(30) NULL,
-	osversion varchar(50) NULL,
-	ostype varchar(30) NULL,
-	cpu varchar(120) NULL,
-	memory varchar(10) NULL,
-	availablememory varchar(10) NULL,
-	hdddrivesname varchar(120) NULL,
-	hddsize varchar(30) NULL,
-	processcount varchar(5) NULL,
-	osinstalltime varchar(50) NULL,
-	osstarttime varchar(50) NULL,
-	mbinfo varchar(120) NULL,
-	powerstatus varchar(5) NULL,
-	batterystatus varchar(30) NULL,
-	ofcntrtscan varchar(20) NULL,
-	ofctmlisten varchar(20) NULL,
-	ofcversion varchar(20) NULL,
-	usbfile varchar(20) NULL,
-	computersn varchar(100) NULL,
-	osversionnum varchar(20) NULL,
-	totalcpu varchar(10) NULL,
-	appversion varchar(10) NULL,
-	sitename varchar(13) NULL,
-	wirelessname varchar(1000) NULL
-);
+
+$ErrorActionPreference = "SilentlyContinue"
+
+# =========================================
+# CONFIGURATION
+# =========================================
+
+$ExcelFile = "$PSScriptRoot\IT_Inventory.xlsx"
+$Computer = $env:COMPUTERNAME
+$Now = Get-Date
+
+# Site name: sua theo nha may
+$SiteName = "SITE001"
+
+# =========================================
+# FUNCTIONS
+# =========================================
+
+function Get-Value($Value, $Default = "N/A") {
+    if ($null -eq $Value -or "$Value".Trim() -eq "") {
+        return $Default
+    }
+    return "$Value".Trim()
+}
+
+function Get-GB($Bytes) {
+    if (!$Bytes) { return "0" }
+    return [math]::Round($Bytes / 1GB, 2).ToString()
+}
+
+# =========================================
+# BASIC INFORMATION
+# =========================================
+
+$OS = Get-CimInstance Win32_OperatingSystem
+$CS = Get-CimInstance Win32_ComputerSystem
+$BIOS = Get-CimInstance Win32_BIOS
+$CPU = Get-CimInstance Win32_Processor
+$Board = Get-CimInstance Win32_BaseBoard
+$Battery = Get-CimInstance Win32_Battery
+$Power = Get-CimInstance Win32_PowerSupply
+
+$User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$Domain = $CS.Domain
+
+# =========================================
+# IP ADDRESS
+# =========================================
+
+$IP = Get-NetIPAddress -AddressFamily IPv4 |
+    Where-Object {
+        $_.IPAddress -notmatch "^169\.254\." -and
+        $_.IPAddress -ne "127.0.0.1" -and
+        $_.InterfaceAlias -notmatch "Loopback"
+    } |
+    Select-Object -First 1 -ExpandProperty IPAddress
+
+if (!$IP) { $IP = "0.0.0.0" }
+
+# =========================================
+# OS INFORMATION
+# =========================================
+
+$OSVersion = $OS.Caption
+$OSType = $OS.OSArchitecture
+$OSVersionNum = $OS.BuildNumber
+
+$OSInstallTime = ""
+$OSStartTime = ""
+
+try {
+    $OSInstallTime = ([Management.ManagementDateTimeConverter]::ToDateTime(
+        $OS.InstallDate
+    )).ToString("yyyy-MM-dd HH:mm:ss")
+
+    $OSStartTime = ([Management.ManagementDateTimeConverter]::ToDateTime(
+        $OS.LastBootUpTime
+    )).ToString("yyyy-MM-dd HH:mm:ss")
+}
+catch {}
+
+# =========================================
+# CPU
+# =========================================
+
+$CPUName = ($CPU | ForEach-Object {
+    $_.Name.Trim()
+}) -join "; "
+
+$TotalCPU = ($CPU | Measure-Object NumberOfLogicalProcessors -Sum).Sum
+$ProcessCount = (Get-Process).Count
+
+# =========================================
+# MEMORY
+# =========================================
+
+$TotalMemory = Get-GB $CS.TotalPhysicalMemory
+$AvailableMemory = Get-GB ($OS.FreePhysicalMemory * 1KB)
+
+# =========================================
+# HDD INFORMATION
+# =========================================
+
+$Disks = Get-CimInstance Win32_DiskDrive |
+    Where-Object { $_.InterfaceType -ne "USB" }
+
+$HDDNames = ($Disks | ForEach-Object {
+    $_.Model.Trim()
+}) -join "; "
+
+$HDDSize = ($Disks | ForEach-Object {
+    Get-GB $_.Size
+}) -join "; "
+
+# =========================================
+# MOTHERBOARD
+# =========================================
+
+$MBInfo = "$($Board.Manufacturer) $($Board.Product) SN:$($Board.SerialNumber)"
+
+# =========================================
+# POWER / BATTERY
+# =========================================
+
+$PowerStatus = if ($Battery.Count -gt 0) {
+    "Battery"
+} else {
+    "AC"
+}
+
+$BatteryStatus = if ($Battery.Count -gt 0) {
+    "$($Battery.EstimatedChargeRemaining)%"
+} else {
+    "No Battery"
+}
+
+# =========================================
+# APEX ONE SERVICES
+# =========================================
+
+$TrendServices = Get-Service
+
+$NTService = $TrendServices |
+    Where-Object { $_.Name -eq "ntrtscan" } |
+    Select-Object -First 1
+
+$TMService = $TrendServices |
+    Where-Object { $_.Name -eq "tmlisten" } |
+    Select-Object -First 1
+
+$OFcntRscan = if ($NTService) {
+    $NTService.Status.ToString()
+} else {
+    "NotFound"
+}
+
+$OFCTMListen = if ($TMService) {
+    $TMService.Status.ToString()
+} else {
+    "NotFound"
+}
+
+# =========================================
+# SOFTWARE VERSION
+# =========================================
+
+$RegPaths = @(
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
+)
+
+$Apps = foreach ($Path in $RegPaths) {
+    Get-ItemProperty $Path | Where-Object { $_.DisplayName }
+}
+
+$ApexApp = $Apps |
+    Where-Object { $_.DisplayName -match "Apex One|OfficeScan" } |
+    Select-Object -First 1
+
+$ISMSApp = $Apps |
+    Where-Object { $_.DisplayName -match "ISMS" } |
+    Select-Object -First 1
+
+$OFCVersion = if ($ApexApp) {
+    Get-Value $ApexApp.DisplayVersion
+} else {
+    "NotFound"
+}
+
+$AppVersion = if ($ISMSApp) {
+    Get-Value $ISMSApp.DisplayVersion
+} else {
+    "NotFound"
+}
+
+# =========================================
+# USB
+# =========================================
+
+$USBStorage = @(Get-CimInstance Win32_DiskDrive |
+    Where-Object { $_.InterfaceType -eq "USB" })
+
+$USBFile = if ($USBStorage.Count -gt 0) {
+    "YES"
+} else {
+    "NO"
+}
+
+# =========================================
+# NETWORK WLAN
+# =========================================
+
+$Wireless = Get-NetAdapter |
+    Where-Object {
+        $_.Name -match "Wi-Fi|Wireless|WLAN" -or
+        $_.InterfaceDescription -match "Wireless|Wi-Fi|802.11"
+    }
+
+$WirelessInfo = ($Wireless | ForEach-Object {
+    "$($_.Name):$($_.MacAddress)"
+}) -join "; "
+
+# =========================================
+# CREATE DATA ROW
+# =========================================
+
+$Row = [ordered]@{
+    computername     = Get-Value $Computer
+    ipaddress        = Get-Value $IP "0.0.0.0"
+    osuserid         = Get-Value $User
+    trndate          = $Now.ToString("yyyy-MM-dd HH:mm:ss")
+    updatedate       = $Now.ToString("yyyy-MM-dd HH:mm:ss")
+    domainname       = Get-Value $Domain
+    osversion        = Get-Value $OSVersion
+    ostype           = Get-Value $OSType
+    cpu              = Get-Value $CPUName
+    memory           = Get-Value $TotalMemory
+    availablememory  = Get-Value $AvailableMemory
+    hdddrivesname    = Get-Value $HDDNames
+    hddsize          = Get-Value $HDDSize
+    processcount     = "$ProcessCount"
+    osinstalltime    = Get-Value $OSInstallTime
+    osstarttime      = Get-Value $OSStartTime
+    mbinfo           = Get-Value $MBInfo
+    powerstatus      = Get-Value $PowerStatus
+    batterystatus    = Get-Value $BatteryStatus
+    ofcntrtscan      = Get-Value $OFcntRscan
+    ofctmlisten      = Get-Value $OFCTMListen
+    ofcversion       = Get-Value $OFCVersion
+    usbfile          = Get-Value $USBFile
+    computersn       = Get-Value $BIOS.SerialNumber
+    osversionnum     = Get-Value $OSVersionNum
+    totalcpu         = "$TotalCPU"
+    appversion       = Get-Value $AppVersion
+    sitename         = $SiteName
+    wirelessname     = Get-Value $WirelessInfo
+    SyncStatus       = "PENDING"
+    SyncTime         = ""
+    SyncError        = ""
+}
+
+# =========================================
+# EXCEL APPEND
+# Requires Microsoft Excel
+# =========================================
+
+$Excel = $null
+$Workbook = $null
+$Sheet = $null
+
+try {
+    $Excel = New-Object -ComObject Excel.Application
+    $Excel.Visible = $false
+    $Excel.DisplayAlerts = $false
+
+    if (Test-Path $ExcelFile) {
+        $Workbook = $Excel.Workbooks.Open($ExcelFile)
+        $Sheet = $Workbook.Worksheets.Item(1)
+    }
+    else {
+        $Workbook = $Excel.Workbooks.Add()
+        $Sheet = $Workbook.Worksheets.Item(1)
+        $Sheet.Name = "ComputerInfo"
+
+        $Headers = @($Row.Keys)
+
+        for ($i = 0; $i -lt $Headers.Count; $i++) {
+            $Sheet.Cells.Item(1, $i + 1) = $Headers[$i]
+        }
+
+        $Sheet.Range("A1:AF1").Font.Bold = $true
+    }
+
+    $LastRow = $Sheet.Cells.Item(
+        $Sheet.Rows.Count, 1
+    ).End(-4162).Row
+
+    $NewRow = $LastRow + 1
+
+    $Values = @($Row.Values)
+
+    for ($i = 0; $i -lt $Values.Count; $i++) {
+        $Sheet.Cells.Item($NewRow, $i + 1) = "$($Values[$i])"
+    }
+
+    $Sheet.Columns.AutoFit() | Out-Null
+
+    $Workbook.Save()
+
+    Write-Host "SUCCESS: Data appended to Excel" -ForegroundColor Green
+    Write-Host $ExcelFile
+
+}
+catch {
+    Write-Host "Excel Error: $_" -ForegroundColor Red
+}
+finally {
+    if ($Workbook) { $Workbook.Close($true) }
+    if ($Excel) { $Excel.Quit() }
+
+    if ($Sheet) {
+        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($Sheet)
+    }
+    if ($Workbook) {
+        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($Workbook)
+    }
+    if ($Excel) {
+        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($Excel)
+    }
+
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
+}
+
+Write-Host "Inventory completed!"
