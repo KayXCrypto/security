@@ -13,3 +13,349 @@ if not exist "%SCRIPT%" (
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%"
 
 pause
+
+
+
+$ErrorActionPreference = "SilentlyContinue"
+
+# ==========================================
+# IT ASSET INVENTORY
+# ==========================================
+
+$Desktop = [Environment]::GetFolderPath("Desktop")
+$Time = Get-Date -Format "yyyyMMdd_HHmmss"
+$Computer = $env:COMPUTERNAME
+
+$ExcelFile = Join-Path $Desktop "IT_Inventory_${Computer}_${Time}.xlsx"
+$CsvFile = Join-Path $Desktop "IT_Inventory_${Computer}_${Time}.csv"
+
+$Data = New-Object System.Collections.Generic.List[object]
+
+function Add-Info {
+    param($Group, $Item, $Value)
+
+    if ($null -eq $Value -or "$Value".Trim() -eq "") {
+        $Value = "N/A"
+    }
+
+    $Data.Add([PSCustomObject]@{
+        Group = $Group
+        Item  = $Item
+        Value = "$Value"
+    })
+}
+
+# ==========================================
+# SYSTEM INFORMATION
+# ==========================================
+
+$OS = Get-CimInstance Win32_OperatingSystem
+$CS = Get-CimInstance Win32_ComputerSystem
+$BIOS = Get-CimInstance Win32_BIOS
+$Board = Get-CimInstance Win32_BaseBoard
+
+Add-Info "SYSTEM" "Computer Name" $Computer
+Add-Info "SYSTEM" "Logged-in User" ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
+Add-Info "SYSTEM" "Manufacturer" $CS.Manufacturer
+Add-Info "SYSTEM" "Computer Model" $CS.Model
+Add-Info "SYSTEM" "Computer Serial Number" $BIOS.SerialNumber
+Add-Info "SYSTEM" "System UUID" (Get-CimInstance Win32_ComputerSystemProduct).UUID
+
+# ==========================================
+# OPERATING SYSTEM
+# ==========================================
+
+Add-Info "OS" "Operating System" $OS.Caption
+Add-Info "OS" "OS Version" $OS.Version
+Add-Info "OS" "Architecture" $OS.OSArchitecture
+Add-Info "OS" "Build Number" $OS.BuildNumber
+Add-Info "OS" "Service Pack" $OS.CSDVersion
+
+try {
+    $InstallDate = [Management.ManagementDateTimeConverter]::ToDateTime($OS.InstallDate)
+    Add-Info "OS" "Installation Date" $InstallDate.ToString("yyyy-MM-dd HH:mm:ss")
+} catch {
+    Add-Info "OS" "Installation Date" $OS.InstallDate
+}
+
+# ==========================================
+# CPU
+# ==========================================
+
+$CPUs = Get-CimInstance Win32_Processor
+
+foreach ($CPU in $CPUs) {
+    Add-Info "CPU" "CPU Name" $CPU.Name
+    Add-Info "CPU" "Manufacturer" $CPU.Manufacturer
+    Add-Info "CPU" "Number of Cores" $CPU.NumberOfCores
+    Add-Info "CPU" "Logical Processors" $CPU.NumberOfLogicalProcessors
+    Add-Info "CPU" "Max Clock Speed (MHz)" $CPU.MaxClockSpeed
+}
+
+# ==========================================
+# RAM / DIMM
+# ==========================================
+
+$RAM = @(Get-CimInstance Win32_PhysicalMemory)
+
+$TotalRAM = ($RAM | Measure-Object Capacity -Sum).Sum
+
+Add-Info "RAM" "Total RAM (GB)" ([math]::Round($TotalRAM / 1GB, 2))
+Add-Info "RAM" "Number of DIMM" $RAM.Count
+
+$i = 0
+
+foreach ($M in $RAM) {
+    $i++
+
+    Add-Info "RAM" "DIMM $i Capacity (GB)" ([math]::Round($M.Capacity / 1GB, 2))
+    Add-Info "RAM" "DIMM $i Manufacturer" $M.Manufacturer
+    Add-Info "RAM" "DIMM $i Part Number" $M.PartNumber
+    Add-Info "RAM" "DIMM $i Speed (MHz)" $M.Speed
+    Add-Info "RAM" "DIMM $i Serial Number" $M.SerialNumber
+}
+
+# ==========================================
+# HDD / SSD
+# ==========================================
+
+$Disks = Get-CimInstance Win32_DiskDrive |
+    Where-Object { $_.InterfaceType -ne "USB" }
+
+$i = 0
+
+foreach ($Disk in $Disks) {
+    $i++
+
+    Add-Info "DISK" "Disk $i Model" $Disk.Model
+    Add-Info "DISK" "Disk $i Serial Number" $Disk.SerialNumber
+    Add-Info "DISK" "Disk $i Capacity (GB)" ([math]::Round($Disk.Size / 1GB, 2))
+    Add-Info "DISK" "Disk $i Interface" $Disk.InterfaceType
+    Add-Info "DISK" "Disk $i Media Type" $Disk.MediaType
+}
+
+# ==========================================
+# MOTHERBOARD
+# ==========================================
+
+Add-Info "MAINBOARD" "Manufacturer" $Board.Manufacturer
+Add-Info "MAINBOARD" "Product" $Board.Product
+Add-Info "MAINBOARD" "Version" $Board.Version
+Add-Info "MAINBOARD" "Serial Number" $Board.SerialNumber
+
+# ==========================================
+# NETWORK MAC ADDRESS
+# ==========================================
+
+$Adapters = Get-CimInstance Win32_NetworkAdapter |
+    Where-Object {
+        $_.PhysicalAdapter -eq $true -and
+        $_.MACAddress
+    }
+
+foreach ($Adapter in $Adapters) {
+
+    $Type = "Other"
+
+    if ($Adapter.Name -match "Wi-Fi|Wireless|WLAN|802.11") {
+        $Type = "WLAN"
+    }
+    elseif ($Adapter.Name -match "Ethernet|Gigabit|LAN") {
+        $Type = "LAN"
+    }
+
+    Add-Info "NETWORK" "$Type - $($Adapter.Name)" $Adapter.MACAddress
+}
+
+# ==========================================
+# INSTALLED SOFTWARE
+# ==========================================
+
+$RegistryPaths = @(
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
+)
+
+$Apps = foreach ($Path in $RegistryPaths) {
+    Get-ItemProperty $Path |
+        Where-Object { $_.DisplayName }
+}
+
+# ISMS
+$ISMS = @($Apps | Where-Object {
+    $_.DisplayName -match "ISMS"
+})
+
+if ($ISMS.Count -gt 0) {
+    Add-Info "SOFTWARE" "ISMS Installed" "YES"
+
+    foreach ($App in $ISMS) {
+        Add-Info "SOFTWARE" "ISMS Name" $App.DisplayName
+        Add-Info "SOFTWARE" "ISMS Version" $App.DisplayVersion
+    }
+}
+else {
+    Add-Info "SOFTWARE" "ISMS Installed" "NO / NOT DETECTED"
+}
+
+# Apex One
+$Apex = @($Apps | Where-Object {
+    $_.DisplayName -match "Apex One|OfficeScan|Trend Micro"
+})
+
+$ApexServices = @(Get-Service | Where-Object {
+    $_.Name -match "ntrtscan|tmlisten|tmlwf" -or
+    $_.DisplayName -match "Trend Micro|Apex One"
+})
+
+if ($Apex.Count -gt 0 -or $ApexServices.Count -gt 0) {
+    Add-Info "SOFTWARE" "Apex One Installed" "YES / COMPONENT DETECTED"
+
+    foreach ($App in $Apex) {
+        Add-Info "SOFTWARE" "Apex Application" $App.DisplayName
+        Add-Info "SOFTWARE" "Apex Version" $App.DisplayVersion
+    }
+
+    foreach ($Service in $ApexServices) {
+        Add-Info "SOFTWARE" "Apex Service" "$($Service.Name) - $($Service.Status)"
+    }
+}
+else {
+    Add-Info "SOFTWARE" "Apex One Installed" "NO / NOT DETECTED"
+}
+
+# ==========================================
+# USB DEVICES
+# ==========================================
+
+$USB = @(Get-CimInstance Win32_PnPEntity |
+    Where-Object {
+        $_.PNPDeviceID -like "USB\*"
+    })
+
+$USBStorage = @(Get-CimInstance Win32_DiskDrive |
+    Where-Object {
+        $_.InterfaceType -eq "USB"
+    })
+
+if ($USB.Count -gt 0) {
+    Add-Info "USB" "USB Device Detected" "YES"
+
+    foreach ($Device in $USB) {
+        Add-Info "USB" "USB Device Name" $Device.Name
+        Add-Info "USB" "USB Device Status" $Device.Status
+        Add-Info "USB" "USB Device ID" $Device.PNPDeviceID
+    }
+}
+else {
+    Add-Info "USB" "USB Device Detected" "NO / NOT DETECTED"
+}
+
+if ($USBStorage.Count -gt 0) {
+    Add-Info "USB" "USB Storage Connected" "YES"
+
+    foreach ($Disk in $USBStorage) {
+        Add-Info "USB" "USB Storage Model" $Disk.Model
+        Add-Info "USB" "USB Storage Serial" $Disk.SerialNumber
+        Add-Info "USB" "USB Storage Size (GB)" ([math]::Round($Disk.Size / 1GB, 2))
+    }
+}
+else {
+    Add-Info "USB" "USB Storage Connected" "NO"
+}
+
+# ==========================================
+# EXPORT TO EXCEL
+# ==========================================
+
+$Excel = $null
+$Workbook = $null
+$Sheet = $null
+
+try {
+    $Excel = New-Object -ComObject Excel.Application
+    $Excel.Visible = $false
+    $Excel.DisplayAlerts = $false
+
+    $Workbook = $Excel.Workbooks.Add()
+    $Sheet = $Workbook.Worksheets.Item(1)
+
+    $Sheet.Name = "IT Inventory"
+
+    # Header
+    $Sheet.Cells.Item(1,1) = "GROUP"
+    $Sheet.Cells.Item(1,2) = "ITEM"
+    $Sheet.Cells.Item(1,3) = "VALUE"
+
+    $row = 2
+
+    foreach ($Item in $Data) {
+        $Sheet.Cells.Item($row,1) = $Item.Group
+        $Sheet.Cells.Item($row,2) = $Item.Item
+        $Sheet.Cells.Item($row,3) = $Item.Value
+        $row++
+    }
+
+    # Format Excel
+    $Header = $Sheet.Range("A1:C1")
+    $Header.Font.Bold = $true
+    $Header.Font.Size = 12
+    $Header.Interior.ColorIndex = 15
+
+    $Sheet.Columns.Item("A:C").AutoFit() | Out-Null
+    $Sheet.Range("A1:C1").AutoFilter() | Out-Null
+
+    $Sheet.Activate() | Out-Null
+
+    # Freeze header row
+    $Excel.ActiveWindow.SplitRow = 1
+    $Excel.ActiveWindow.FreezePanes = $true
+
+    # Save XLSX
+    $Workbook.SaveAs($ExcelFile, 51)
+
+    Write-Host ""
+    Write-Host "EXCEL EXPORT SUCCESSFUL" -ForegroundColor Green
+    Write-Host $ExcelFile -ForegroundColor Yellow
+
+}
+catch {
+
+    Write-Host "Excel export failed. Exporting CSV..." -ForegroundColor Yellow
+
+    $Data | Export-Csv -Path $CsvFile -NoTypeInformation -Encoding UTF8
+
+    Write-Host "CSV saved: $CsvFile" -ForegroundColor Green
+
+}
+finally {
+
+    if ($Workbook) {
+        $Workbook.Close($false)
+    }
+
+    if ($Excel) {
+        $Excel.Quit()
+    }
+
+    if ($Sheet) {
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Sheet) | Out-Null
+    }
+
+    if ($Workbook) {
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Workbook) | Out-Null
+    }
+
+    if ($Excel) {
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Excel) | Out-Null
+    }
+
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
+}
+
+Write-Host ""
+Write-Host "IT INVENTORY COMPLETED!" -ForegroundColor Green
+
+
