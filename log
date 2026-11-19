@@ -1,336 +1,317 @@
 
-$ErrorActionPreference = "SilentlyContinue"
+import os
+import logging
+from datetime import datetime
 
-# =========================================
+import psycopg2
+from psycopg2 import sql
+from openpyxl import load_workbook
+
+
+# ==========================================
 # CONFIGURATION
-# =========================================
+# ==========================================
 
-$ExcelFile = "$PSScriptRoot\IT_Inventory.xlsx"
-$Computer = $env:COMPUTERNAME
-$Now = Get-Date
-
-# Site name: sua theo nha may
-$SiteName = "SITE001"
-
-# =========================================
-# FUNCTIONS
-# =========================================
-
-function Get-Value($Value, $Default = "N/A") {
-    if ($null -eq $Value -or "$Value".Trim() -eq "") {
-        return $Default
-    }
-    return "$Value".Trim()
-}
-
-function Get-GB($Bytes) {
-    if (!$Bytes) { return "0" }
-    return [math]::Round($Bytes / 1GB, 2).ToString()
-}
-
-# =========================================
-# BASIC INFORMATION
-# =========================================
-
-$OS = Get-CimInstance Win32_OperatingSystem
-$CS = Get-CimInstance Win32_ComputerSystem
-$BIOS = Get-CimInstance Win32_BIOS
-$CPU = Get-CimInstance Win32_Processor
-$Board = Get-CimInstance Win32_BaseBoard
-$Battery = Get-CimInstance Win32_Battery
-$Power = Get-CimInstance Win32_PowerSupply
-
-$User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-$Domain = $CS.Domain
-
-# =========================================
-# IP ADDRESS
-# =========================================
-
-$IP = Get-NetIPAddress -AddressFamily IPv4 |
-    Where-Object {
-        $_.IPAddress -notmatch "^169\.254\." -and
-        $_.IPAddress -ne "127.0.0.1" -and
-        $_.InterfaceAlias -notmatch "Loopback"
-    } |
-    Select-Object -First 1 -ExpandProperty IPAddress
-
-if (!$IP) { $IP = "0.0.0.0" }
-
-# =========================================
-# OS INFORMATION
-# =========================================
-
-$OSVersion = $OS.Caption
-$OSType = $OS.OSArchitecture
-$OSVersionNum = $OS.BuildNumber
-
-$OSInstallTime = ""
-$OSStartTime = ""
-
-try {
-    $OSInstallTime = ([Management.ManagementDateTimeConverter]::ToDateTime(
-        $OS.InstallDate
-    )).ToString("yyyy-MM-dd HH:mm:ss")
-
-    $OSStartTime = ([Management.ManagementDateTimeConverter]::ToDateTime(
-        $OS.LastBootUpTime
-    )).ToString("yyyy-MM-dd HH:mm:ss")
-}
-catch {}
-
-# =========================================
-# CPU
-# =========================================
-
-$CPUName = ($CPU | ForEach-Object {
-    $_.Name.Trim()
-}) -join "; "
-
-$TotalCPU = ($CPU | Measure-Object NumberOfLogicalProcessors -Sum).Sum
-$ProcessCount = (Get-Process).Count
-
-# =========================================
-# MEMORY
-# =========================================
-
-$TotalMemory = Get-GB $CS.TotalPhysicalMemory
-$AvailableMemory = Get-GB ($OS.FreePhysicalMemory * 1KB)
-
-# =========================================
-# HDD INFORMATION
-# =========================================
-
-$Disks = Get-CimInstance Win32_DiskDrive |
-    Where-Object { $_.InterfaceType -ne "USB" }
-
-$HDDNames = ($Disks | ForEach-Object {
-    $_.Model.Trim()
-}) -join "; "
-
-$HDDSize = ($Disks | ForEach-Object {
-    Get-GB $_.Size
-}) -join "; "
-
-# =========================================
-# MOTHERBOARD
-# =========================================
-
-$MBInfo = "$($Board.Manufacturer) $($Board.Product) SN:$($Board.SerialNumber)"
-
-# =========================================
-# POWER / BATTERY
-# =========================================
-
-$PowerStatus = if ($Battery.Count -gt 0) {
-    "Battery"
-} else {
-    "AC"
-}
-
-$BatteryStatus = if ($Battery.Count -gt 0) {
-    "$($Battery.EstimatedChargeRemaining)%"
-} else {
-    "No Battery"
-}
-
-# =========================================
-# APEX ONE SERVICES
-# =========================================
-
-$TrendServices = Get-Service
-
-$NTService = $TrendServices |
-    Where-Object { $_.Name -eq "ntrtscan" } |
-    Select-Object -First 1
-
-$TMService = $TrendServices |
-    Where-Object { $_.Name -eq "tmlisten" } |
-    Select-Object -First 1
-
-$OFcntRscan = if ($NTService) {
-    $NTService.Status.ToString()
-} else {
-    "NotFound"
-}
-
-$OFCTMListen = if ($TMService) {
-    $TMService.Status.ToString()
-} else {
-    "NotFound"
-}
-
-# =========================================
-# SOFTWARE VERSION
-# =========================================
-
-$RegPaths = @(
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
-    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
-    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
+EXCEL_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "IT_Inventory.xlsx"
 )
 
-$Apps = foreach ($Path in $RegPaths) {
-    Get-ItemProperty $Path | Where-Object { $_.DisplayName }
+DB_CONFIG = {
+    "host": "YOUR_PG_HOST",
+    "port": 5432,
+    "database": "YOUR_DATABASE",
+    "user": "YOUR_USERNAME",
+    "password": "YOUR_PASSWORD",
+    "connect_timeout": 10
 }
 
-$ApexApp = $Apps |
-    Where-Object { $_.DisplayName -match "Apex One|OfficeScan" } |
-    Select-Object -First 1
+TABLE_SCHEMA = "isms"
+TABLE_NAME = "computerinfooffline"
 
-$ISMSApp = $Apps |
-    Where-Object { $_.DisplayName -match "ISMS" } |
-    Select-Object -First 1
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
 
-$OFCVersion = if ($ApexApp) {
-    Get-Value $ApexApp.DisplayVersion
-} else {
-    "NotFound"
+
+# ==========================================
+# DATABASE COLUMNS
+# ==========================================
+
+DB_COLUMNS = [
+    "computername",
+    "ipaddress",
+    "osuserid",
+    "trndate",
+    "updatedate",
+    "domainname",
+    "osversion",
+    "ostype",
+    "cpu",
+    "memory",
+    "availablememory",
+    "hdddrivesname",
+    "hddsize",
+    "processcount",
+    "osinstalltime",
+    "osstarttime",
+    "mbinfo",
+    "powerstatus",
+    "batterystatus",
+    "ofcntrtscan",
+    "ofctmlisten",
+    "ofcversion",
+    "usbfile",
+    "computersn",
+    "osversionnum",
+    "totalcpu",
+    "appversion",
+    "sitename",
+    "wirelessname"
+]
+
+TIMESTAMP_COLUMNS = {
+    "trndate",
+    "updatedate"
 }
 
-$AppVersion = if ($ISMSApp) {
-    Get-Value $ISMSApp.DisplayVersion
-} else {
-    "NotFound"
-}
 
-# =========================================
-# USB
-# =========================================
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
 
-$USBStorage = @(Get-CimInstance Win32_DiskDrive |
-    Where-Object { $_.InterfaceType -eq "USB" })
+def convert_value(column, value):
 
-$USBFile = if ($USBStorage.Count -gt 0) {
-    "YES"
-} else {
-    "NO"
-}
+    if value is None or value == "":
+        return None
 
-# =========================================
-# NETWORK WLAN
-# =========================================
+    if column in TIMESTAMP_COLUMNS:
 
-$Wireless = Get-NetAdapter |
-    Where-Object {
-        $_.Name -match "Wi-Fi|Wireless|WLAN" -or
-        $_.InterfaceDescription -match "Wireless|Wi-Fi|802.11"
-    }
+        if isinstance(value, datetime):
+            return value
 
-$WirelessInfo = ($Wireless | ForEach-Object {
-    "$($_.Name):$($_.MacAddress)"
-}) -join "; "
+        if isinstance(value, str):
+            return datetime.strptime(
+                value,
+                "%Y-%m-%d %H:%M:%S"
+            )
 
-# =========================================
-# CREATE DATA ROW
-# =========================================
+    return str(value).strip()
 
-$Row = [ordered]@{
-    computername     = Get-Value $Computer
-    ipaddress        = Get-Value $IP "0.0.0.0"
-    osuserid         = Get-Value $User
-    trndate          = $Now.ToString("yyyy-MM-dd HH:mm:ss")
-    updatedate       = $Now.ToString("yyyy-MM-dd HH:mm:ss")
-    domainname       = Get-Value $Domain
-    osversion        = Get-Value $OSVersion
-    ostype           = Get-Value $OSType
-    cpu              = Get-Value $CPUName
-    memory           = Get-Value $TotalMemory
-    availablememory  = Get-Value $AvailableMemory
-    hdddrivesname    = Get-Value $HDDNames
-    hddsize          = Get-Value $HDDSize
-    processcount     = "$ProcessCount"
-    osinstalltime    = Get-Value $OSInstallTime
-    osstarttime      = Get-Value $OSStartTime
-    mbinfo           = Get-Value $MBInfo
-    powerstatus      = Get-Value $PowerStatus
-    batterystatus    = Get-Value $BatteryStatus
-    ofcntrtscan      = Get-Value $OFcntRscan
-    ofctmlisten      = Get-Value $OFCTMListen
-    ofcversion       = Get-Value $OFCVersion
-    usbfile          = Get-Value $USBFile
-    computersn       = Get-Value $BIOS.SerialNumber
-    osversionnum     = Get-Value $OSVersionNum
-    totalcpu         = "$TotalCPU"
-    appversion       = Get-Value $AppVersion
-    sitename         = $SiteName
-    wirelessname     = Get-Value $WirelessInfo
-    SyncStatus       = "PENDING"
-    SyncTime         = ""
-    SyncError        = ""
-}
 
-# =========================================
-# EXCEL APPEND
-# Requires Microsoft Excel
-# =========================================
+def get_column_map(sheet):
 
-$Excel = $null
-$Workbook = $null
-$Sheet = $null
+    headers = {}
 
-try {
-    $Excel = New-Object -ComObject Excel.Application
-    $Excel.Visible = $false
-    $Excel.DisplayAlerts = $false
+    for col in range(1, sheet.max_column + 1):
 
-    if (Test-Path $ExcelFile) {
-        $Workbook = $Excel.Workbooks.Open($ExcelFile)
-        $Sheet = $Workbook.Worksheets.Item(1)
-    }
-    else {
-        $Workbook = $Excel.Workbooks.Add()
-        $Sheet = $Workbook.Worksheets.Item(1)
-        $Sheet.Name = "ComputerInfo"
+        value = sheet.cell(1, col).value
 
-        $Headers = @($Row.Keys)
+        if value:
+            headers[str(value).strip()] = col
 
-        for ($i = 0; $i -lt $Headers.Count; $i++) {
-            $Sheet.Cells.Item(1, $i + 1) = $Headers[$i]
-        }
+    return headers
 
-        $Sheet.Range("A1:AF1").Font.Bold = $true
-    }
 
-    $LastRow = $Sheet.Cells.Item(
-        $Sheet.Rows.Count, 1
-    ).End(-4162).Row
+# ==========================================
+# CONNECT POSTGRESQL
+# ==========================================
 
-    $NewRow = $LastRow + 1
+def connect_db():
 
-    $Values = @($Row.Values)
+    return psycopg2.connect(**DB_CONFIG)
 
-    for ($i = 0; $i -lt $Values.Count; $i++) {
-        $Sheet.Cells.Item($NewRow, $i + 1) = "$($Values[$i])"
-    }
 
-    $Sheet.Columns.AutoFit() | Out-Null
+# ==========================================
+# INSERT DATA
+# ==========================================
 
-    $Workbook.Save()
+def insert_data(cursor, row_data):
 
-    Write-Host "SUCCESS: Data appended to Excel" -ForegroundColor Green
-    Write-Host $ExcelFile
+    columns = [
+        sql.Identifier(column)
+        for column in DB_COLUMNS
+    ]
 
-}
-catch {
-    Write-Host "Excel Error: $_" -ForegroundColor Red
-}
-finally {
-    if ($Workbook) { $Workbook.Close($true) }
-    if ($Excel) { $Excel.Quit() }
+    placeholders = [
+        sql.Placeholder()
+        for _ in DB_COLUMNS
+    ]
 
-    if ($Sheet) {
-        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($Sheet)
-    }
-    if ($Workbook) {
-        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($Workbook)
-    }
-    if ($Excel) {
-        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($Excel)
-    }
+    query = sql.SQL(
+        """
+        INSERT INTO {}.{} ({})
+        VALUES ({})
+        """
+    ).format(
+        sql.Identifier(TABLE_SCHEMA),
+        sql.Identifier(TABLE_NAME),
+        sql.SQL(", ").join(columns),
+        sql.SQL(", ").join(placeholders)
+    )
 
-    [GC]::Collect()
-    [GC]::WaitForPendingFinalizers()
-}
+    values = [
+        row_data.get(column)
+        for column in DB_COLUMNS
+    ]
 
-Write-Host "Inventory completed!"
+    cursor.execute(query, values)
+
+
+# ==========================================
+# MAIN PROCESS
+# ==========================================
+
+def main():
+
+    if not os.path.exists(EXCEL_FILE):
+        raise FileNotFoundError(EXCEL_FILE)
+
+    logging.info("Opening Excel: %s", EXCEL_FILE)
+
+    workbook = load_workbook(EXCEL_FILE)
+
+    sheet = workbook["ComputerInfo"]
+
+    headers = get_column_map(sheet)
+
+    required_headers = DB_COLUMNS + [
+        "SyncStatus",
+        "SyncTime",
+        "SyncError"
+    ]
+
+    missing = [
+        name for name in required_headers
+        if name not in headers
+    ]
+
+    if missing:
+        raise ValueError(
+            f"Missing Excel columns: {missing}"
+        )
+
+    # Connect PostgreSQL
+
+    conn = connect_db()
+
+    success = 0
+    failed = 0
+    skipped = 0
+
+    try:
+
+        cursor = conn.cursor()
+
+        for row_number in range(2, sheet.max_row + 1):
+
+            status_cell = sheet.cell(
+                row_number,
+                headers["SyncStatus"]
+            )
+
+            status = str(
+                status_cell.value or ""
+            ).strip().upper()
+
+            # Only process PENDING rows
+
+            if status != "PENDING":
+                skipped += 1
+                continue
+
+            row_data = {}
+
+            for column in DB_COLUMNS:
+
+                cell_value = sheet.cell(
+                    row_number,
+                    headers[column]
+                ).value
+
+                row_data[column] = convert_value(
+                    column,
+                    cell_value
+                )
+
+            # IP address is NOT NULL in PostgreSQL
+
+            if not row_data["ipaddress"]:
+                row_data["ipaddress"] = "0.0.0.0"
+
+            try:
+
+                insert_data(cursor, row_data)
+
+                conn.commit()
+
+                status_cell.value = "SYNCED"
+
+                sheet.cell(
+                    row_number,
+                    headers["SyncTime"]
+                ).value = datetime.now()
+
+                sheet.cell(
+                    row_number,
+                    headers["SyncError"]
+                ).value = None
+
+                success += 1
+
+                logging.info(
+                    "Row %s inserted: %s",
+                    row_number,
+                    row_data["computername"]
+                )
+
+            except Exception as error:
+
+                conn.rollback()
+
+                status_cell.value = "ERROR"
+
+                sheet.cell(
+                    row_number,
+                    headers["SyncTime"]
+                ).value = datetime.now()
+
+                sheet.cell(
+                    row_number,
+                    headers["SyncError"]
+                ).value = str(error)[:1000]
+
+                failed += 1
+
+                logging.exception(
+                    "Failed row %s",
+                    row_number
+                )
+
+            # Save Excel after every processed row
+
+            workbook.save(EXCEL_FILE)
+
+        cursor.close()
+
+    finally:
+
+        conn.close()
+        workbook.close()
+
+    logging.info("==============================")
+    logging.info("SYNC COMPLETED")
+    logging.info("SUCCESS : %s", success)
+    logging.info("FAILED  : %s", failed)
+    logging.info("SKIPPED : %s", skipped)
+    logging.info("==============================")
+
+
+if __name__ == "__main__":
+
+    try:
+        main()
+
+    except Exception as error:
+        logging.exception("SYNC PROCESS ERROR")
