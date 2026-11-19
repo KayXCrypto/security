@@ -1,7 +1,15 @@
-Tên hệ điều hành, tên máy tính, số sê-ri máy tính (SN), tài khoản đăng nhập, CPU, DIMM, ổ cứng (HDD)
-Phiên bản hệ điều hành, loại hệ điều hành, phiên bản hệ thống, số phiên bản hệ điều hành
-Thời gian cài đặt hệ điều hành, thông tin bo mạch chủ, số sê-ri máy tính
-Địa chỉ MAC mạng LAN/WLAN
-Có cài đặt ISMS không?
-Có cài đặt Apex One không?
-Có cài đặt USB không?
+@echo off
+chcp 65001 >nul
+title IT Asset Inventory
+
+set "SCRIPT=%~dp0IT_Inventory.ps1"
+
+if not exist "%SCRIPT%" (
+    echo ERROR: Khong tim thay IT_Inventory.ps1
+    pause
+    exit /b 1
+)
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%"
+
+pause
